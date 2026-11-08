@@ -98,6 +98,12 @@ The first time, run SAXCE on the calculator, plug it in and click **Connect
 calculator**, then pick the calculator in the browser's list. After that the
 page reconnects by itself whenever SAXCE starts.
 
+The page knows two USB IDs a calculator shows up with (`16c0:05e1` from
+srldrvce, and TI's `0451:e008`). If yours shows up as something else, click
+**Use another device** and pick it from the full list: its ID is remembered,
+so it reconnects by itself too. IDs can also be typed under **Settings →
+Extra USB IDs** (`vvvv:pppp`, comma-separated).
+
 - **Fast sign-on:** EFnet takes about 15 seconds to sign anyone on. The page
   remembers your last nickname and signs on as soon as it opens, so it's
   usually already in the channel by the time the calculator connects.

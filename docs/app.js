@@ -3,8 +3,8 @@
 // only outside piece is the relay (relay/relay.mjs), which passes IRC lines
 // between a WebSocket and the IRC server, since pages can't open raw TCP.
 
-import { IrcBackend, LocalBackend } from "./irc.js?v=3";
-import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js?v=3";
+import { IrcBackend, LocalBackend } from "./irc.js?v=4";
+import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js?v=4";
 
 const $ = (id) => document.getElementById(id);
 
@@ -20,6 +20,7 @@ const DEFAULTS = {
   channel: "#cemetech",
   lastNick: "",
   autoStart: true,
+  usbIds: [],              // extra calculator USB IDs, "vvvv:pppp" in hex
 };
 const STORE = "saxce-bridge";
 
@@ -32,6 +33,7 @@ function loadSettings() {
   }
   const s = { ...DEFAULTS };
   for (const k of Object.keys(DEFAULTS)) if (typeof saved[k] === typeof DEFAULTS[k]) s[k] = saved[k];
+  s.usbIds = Array.isArray(saved.usbIds) ? parseUsbIds(saved.usbIds.join(",")) : [];
   return s;
 }
 
@@ -223,7 +225,8 @@ function render() {
   setLight("net", cls, `Network: ${label} ${detail}`.trim());
   $("run-btn").textContent = running ? "Stop" : "Start";
   $("run-hint").textContent = running ? "" : "The bridge is stopped.";
-  for (const el of $("settings").querySelectorAll("input")) el.disabled = running && el.id !== "autoStart";
+  for (const el of $("settings").querySelectorAll("input"))
+    el.disabled = running && el.id !== "autoStart" && el.id !== "usbIds";
   const ok = running && !!nick && state !== "off";
   $("draft").disabled = !ok;
   $("send-btn").disabled = !ok;
@@ -246,7 +249,21 @@ function fillForm() {
   $("wsUrl").value = settings.wsUrl;
   $("channel").value = settings.channel;
   $("autoStart").checked = settings.autoStart;
+  $("usbIds").value = settings.usbIds.join(", ");
   showModeFields();
+}
+
+/** "16c0:05e1, 0x0451:0xe008" -> ["16c0:05e1", "0451:e008"]; anything else is dropped. */
+function parseUsbIds(text) {
+  const ids = [];
+  for (const part of text.toLowerCase().split(/[\s,;]+/)) {
+    const m = part.match(/^(?:0x)?([0-9a-f]{1,4})[:/]?(?:0x)?([0-9a-f]{4})$/);
+    if (m) {
+      const id = `${m[1].padStart(4, "0")}:${m[2]}`;
+      if (!ids.includes(id)) ids.push(id);
+    }
+  }
+  return ids;
 }
 
 function readForm() {
@@ -281,6 +298,13 @@ $("run-btn").addEventListener("click", () => {
   else if (readForm()) start();
 });
 
+$("usbIds").addEventListener("change", () => {
+  settings.usbIds = parseUsbIds($("usbIds").value).filter((id) => !KNOWN_USB_IDS.includes(id));
+  $("usbIds").value = settings.usbIds.join(", ");
+  saveSettings();
+  if (!port && "serial" in navigator) autoConnect(); // a newly listed device may already be allowed
+});
+
 $("autoStart").addEventListener("change", () => {
   settings.autoStart = $("autoStart").checked;
   saveSettings();
@@ -301,12 +325,10 @@ $("send-form").addEventListener("submit", (e) => {
 
 // ---------- calculator (Web Serial) ----------
 
-// USB IDs a CE running SAXCE shows up with. srldrvce uses the generic
-// 16C0:05E1 CDC-ACM ID, not TI's own.
-const CE_FILTERS = [
-  { usbVendorId: 0x16c0, usbProductId: 0x05e1 },
-  { usbVendorId: 0x0451, usbProductId: 0xe008 },
-];
+// USB IDs a CE running SAXCE can show up with: srldrvce's generic CDC-ACM
+// ID, and TI's own. More can be added under Settings, or by picking a
+// device with "Use another device".
+const KNOWN_USB_IDS = ["16c0:05e1", "0451:e008"];
 
 let port = null;
 let greeted = false;
@@ -314,10 +336,22 @@ let writeChain = Promise.resolve();
 let helloTimer = null;
 let closing = null;
 
-const isCalc = (p) => {
+const hex4 = (n) => n.toString(16).padStart(4, "0");
+
+const usbIds = () => [...new Set([...KNOWN_USB_IDS, ...settings.usbIds])];
+
+const usbFilters = () =>
+  usbIds().map((id) => {
+    const [v, p] = id.split(":");
+    return { usbVendorId: parseInt(v, 16), usbProductId: parseInt(p, 16) };
+  });
+
+function portId(p) {
   const i = p.getInfo();
-  return CE_FILTERS.some((f) => f.usbVendorId === i.usbVendorId && f.usbProductId === i.usbProductId);
-};
+  return i.usbVendorId === undefined ? "" : `${hex4(i.usbVendorId)}:${hex4(i.usbProductId)}`;
+}
+
+const isCalc = (p) => usbIds().includes(portId(p));
 
 function renderCalc() {
   if (!port) {
@@ -437,10 +471,31 @@ $("calc-btn").addEventListener("click", async () => {
     return;
   }
   try {
-    openCalc(await navigator.serial.requestPort({ filters: CE_FILTERS }));
+    openCalc(await navigator.serial.requestPort({ filters: usbFilters() }));
   } catch (e) {
     if (e.name !== "NotFoundError") addLine({ t: "status", text: `Couldn't pick a port: ${e.message}` });
   }
+});
+
+// Any serial device. Its USB ID is remembered, so it reconnects by itself
+// like the known ones.
+$("other-btn").addEventListener("click", async () => {
+  if (port) return;
+  let p;
+  try {
+    p = await navigator.serial.requestPort();
+  } catch (e) {
+    if (e.name !== "NotFoundError") addLine({ t: "status", text: `Couldn't pick a port: ${e.message}` });
+    return;
+  }
+  const id = portId(p);
+  if (id && !usbIds().includes(id)) {
+    settings.usbIds = [...settings.usbIds, id];
+    saveSettings();
+    $("usbIds").value = settings.usbIds.join(", ");
+    log(`Added USB ID ${id}; it will reconnect by itself from now on.`);
+  }
+  openCalc(p);
 });
 
 async function autoConnect() {
@@ -464,6 +519,7 @@ if ("serial" in navigator) {
 } else {
   $("no-serial").hidden = false;
   $("calc-btn").disabled = true;
+  $("other-btn").disabled = true;
   $("calc-hint").textContent = "Needs Chrome or Edge.";
 }
 if (settings.autoStart) start();

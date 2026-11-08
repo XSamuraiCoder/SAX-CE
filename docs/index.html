@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Chat on Cemetech SAX from a TI-84 Plus CE, connected over USB.">
 <title>SAX-CE Bridge</title>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <header>
@@ -39,6 +39,7 @@
 <section class="panel">
   <div class="row">
     <button id="calc-btn" class="primary">Connect calculator</button>
+    <button id="other-btn" type="button" title="Pick any serial device; its USB ID is remembered">Use another device</button>
     <span class="hint" id="calc-hint">Run SAXCE on the calculator, plug it in, then click Connect (only needed once).</span>
   </div>
   <details id="settings">
@@ -62,6 +63,11 @@
       <div class="inline" data-for="ws"><input id="wsUrl" size="34" placeholder="wss://irc.example.org/"></div>
       <label for="channel">Channel</label>
       <div class="inline"><input id="channel" size="16"></div>
+      <label for="usbIds">Extra USB IDs</label>
+      <div class="inline">
+        <input id="usbIds" size="24" placeholder="vvvv:pppp, ..." spellcheck="false">
+        <span class="hint">besides 16c0:05e1 and 0451:e008</span>
+      </div>
       <span class="label"></span>
       <div class="inline"><label><input type="checkbox" id="autoStart"> Start when opened</label></div>
     </div>
@@ -85,6 +91,6 @@
   calculator program, relay and setup steps
 </footer>
 
-<script type="module" src="app.js?v=3"></script>
+<script type="module" src="app.js?v=4"></script>
 </body>
 </html>
