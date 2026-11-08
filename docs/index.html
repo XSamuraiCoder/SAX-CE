@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Chat on Cemetech SAX from a TI-84 Plus CE, connected over USB.">
 <title>SAX-CE Bridge</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <header>
@@ -17,7 +17,10 @@
 </header>
 
 <div id="no-serial" class="banner" hidden>
-  This browser can't talk to USB devices. Open this page in <b>Chrome</b> or <b>Edge</b> on a computer.
+  This browser can't talk to USB devices. Open this page on a computer in <b>Chrome</b>, <b>Edge</b>,
+  or <b>Firefox 151</b> or newer.
+  <p id="no-serial-ff" hidden>Your Firefox is older than 151: update it (Menu → Help → About Firefox).
+  Firefox ESR doesn't have it yet.</p>
 </div>
 
 <div id="relay-help" class="banner info" hidden>
@@ -91,6 +94,6 @@
   calculator program, relay and setup steps
 </footer>
 
-<script type="module" src="app.js?v=5"></script>
+<script type="module" src="app.js?v=6"></script>
 </body>
 </html>

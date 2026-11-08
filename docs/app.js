@@ -3,8 +3,8 @@
 // only outside piece is the relay (relay/relay.mjs), which passes IRC lines
 // between a WebSocket and the IRC server, since pages can't open raw TCP.
 
-import { IrcBackend, LocalBackend } from "./irc.js?v=5";
-import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js?v=5";
+import { IrcBackend, LocalBackend } from "./irc.js?v=6";
+import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js?v=6";
 
 const $ = (id) => document.getElementById(id);
 
@@ -481,7 +481,15 @@ $("calc-btn").addEventListener("click", async () => {
     return;
   }
   try {
-    openCalc(await navigator.serial.requestPort({ filters: usbFilters() }));
+    let p;
+    try {
+      p = await navigator.serial.requestPort({ filters: usbFilters() });
+    } catch (e) {
+      // a browser that doesn't take USB filters: show every port instead
+      if (e.name !== "TypeError") throw e;
+      p = await navigator.serial.requestPort();
+    }
+    openCalc(p);
   } catch (e) {
     if (e.name !== "NotFoundError") addLine({ t: "status", text: `Couldn't pick a port: ${e.message}` });
   }
@@ -510,7 +518,13 @@ $("other-btn").addEventListener("click", async () => {
 
 async function autoConnect() {
   // Calculators this page was allowed before reconnect without a click.
-  for (const p of await navigator.serial.getPorts()) {
+  let ports = [];
+  try {
+    ports = await navigator.serial.getPorts();
+  } catch {
+    /* browser doesn't remember ports: Connect is needed each time */
+  }
+  for (const p of ports) {
     if (isCalc(p)) {
       await openCalc(p);
       if (port) return;
@@ -520,17 +534,27 @@ async function autoConnect() {
 
 // ---------- start up ----------
 
+const firefox = /\bFirefox\/(\d+)/.exec(navigator.userAgent);
+
 fillForm();
 render();
 if ("serial" in navigator) {
-  navigator.serial.addEventListener("connect", (e) => isCalc(e.target) && openCalc(e.target));
-  navigator.serial.addEventListener("disconnect", (e) => e.target === port && closeCalc("Calculator unplugged."));
+  try {
+    navigator.serial.addEventListener("connect", (e) => isCalc(e.target) && openCalc(e.target));
+    navigator.serial.addEventListener("disconnect", (e) => e.target === port && closeCalc("Calculator unplugged."));
+  } catch {
+    /* no plug/unplug events: Connect is clicked by hand, and the read loop notices unplugging */
+  }
+  if (firefox)
+    $("calc-hint").textContent =
+      "Run SAXCE, plug it in, then click Connect. The first time, Firefox asks you to allow serial access for this site.";
   autoConnect();
 } else {
   $("no-serial").hidden = false;
+  if (firefox && Number(firefox[1]) < 151) $("no-serial-ff").hidden = false;
   $("calc-btn").disabled = true;
   $("other-btn").disabled = true;
-  $("calc-hint").textContent = "Needs Chrome or Edge.";
+  $("calc-hint").textContent = "Needs Chrome, Edge, or Firefox 151 or newer.";
 }
 if (settings.autoStart) start();
 window.addEventListener("pagehide", () => backend?.stop());

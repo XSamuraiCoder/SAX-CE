@@ -10,7 +10,7 @@ USB instead:
 
 ```
 TI-84 Plus CE  --USB (Web Serial)-->  bridge page  --WebSocket-->  relay  --IRC-->  #cemetech (EFnet)
-   SAXCE.8xp                         Chrome / Edge                 Node.js           relayed to SAX
+   SAXCE.8xp                     Chrome / Edge / Firefox           Node.js           relayed to SAX
 ```
 
 | Where | What |
@@ -75,8 +75,10 @@ like `v1.0` also publishes a release with `SAXCE.8xp`.
 ## PC bridge
 
 The bridge is a static web page: it runs entirely in the browser, talking to
-the calculator over USB with Web Serial, so it needs **Chrome or Edge**. Open
-it at https://xsamuraicoder.github.io/SAX-CE/ or locally (below).
+the calculator over USB with Web Serial, so it needs **Chrome**, **Edge** or
+**Firefox 151+** (Firefox asks once to allow serial access for the site,
+and may need **Connect calculator** clicked each visit). Open it at
+https://xsamuraicoder.github.io/SAX-CE/ or locally (below).
 
 Web pages can't open raw connections to IRC, and EFnet doesn't take WebSocket
 connections, so to reach SAX the page needs the **relay** running on the same

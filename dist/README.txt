@@ -14,7 +14,7 @@ SAX-CE bridge, which passes the chat on to SAX.
 REQUIREMENTS
 ------------
 - TI-84 Plus CE or TI-83 Premium CE (no other libraries needed)
-- A computer with Chrome or Edge, and a USB cable
+- A computer with Chrome, Edge or Firefox 151+, and a USB cable
 - On OS 5.5 and newer, arTIfiCE (or similar) to run assembly programs
 
 

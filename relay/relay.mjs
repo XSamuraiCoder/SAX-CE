@@ -22,6 +22,9 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.resolve(here, "..", "docs");
+// relay.mjs downloaded on its own has no page next to it: use the published one
+const HAVE_SITE = fs.existsSync(path.join(SITE, "index.html"));
+const PUBLISHED = "https://xsamuraicoder.github.io/SAX-CE/";
 const args = process.argv.slice(2);
 const opt = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const PORT = Number(opt("--port")) || Number(process.env.SAXCE_PORT) || 8317;
@@ -168,6 +171,7 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ relay: "saxce", version: 1 }));
   }
   if (req.method !== "GET") return res.writeHead(405).end();
+  if (!HAVE_SITE) return res.writeHead(302, { Location: PUBLISHED }).end();
   const rel = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
   const file = path.join(SITE, path.normalize(rel));
   if (!file.startsWith(SITE + path.sep)) return res.writeHead(404).end();
@@ -217,7 +221,7 @@ function openBrowser(url) {
   }
 }
 
-const PAGE = `http://localhost:${PORT}/`;
+const PAGE = HAVE_SITE ? `http://localhost:${PORT}/` : PUBLISHED;
 
 server.on("error", (e) => {
   if (e.code === "EADDRINUSE") {
