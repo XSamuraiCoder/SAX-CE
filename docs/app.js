@@ -3,8 +3,8 @@
 // only outside piece is the relay (relay/relay.mjs), which passes IRC lines
 // between a WebSocket and the IRC server, since pages can't open raw TCP.
 
-import { IrcBackend, LocalBackend } from "./irc.js";
-import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js";
+import { IrcBackend, LocalBackend } from "./irc.js?v=3";
+import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js?v=3";
 
 const $ = (id) => document.getElementById(id);
 
