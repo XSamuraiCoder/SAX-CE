@@ -1,0 +1,14 @@
+[tool.tipy]
+name = "SAXCE"
+description = "SAX chat"
+main = "src/main.py"
+target = "ce"
+bindir = "bin"
+
+# Fonts for y=: the fonts in a SAXFONT font pack. To build one from a .fnt or
+# .convfont file, uncomment this, or for several fonts run:
+#   tipy-asm convfont -o fontpack -N SAXFONT -f a.fnt -f b.fnt SAXFONT.8xv
+# [[tool.tipy.assets]]
+# source = "fonts/drsans-09-normal.convfont"
+# kind = "font"
+# name = "SAXFONT"

@@ -11,7 +11,8 @@ permissions:
   contents: read
 
 env:
-  CEDEV_VERSION: v15.0
+  # TIpy-asm version to build with: a branch, tag or commit
+  TIPY_REF: main
 
 jobs:
   calc:
@@ -20,25 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache CE toolchain
-        id: cedev-cache
-        uses: actions/cache@v4
+      - uses: actions/setup-python@v5
         with:
-          path: ~/CEdev
-          key: cedev-${{ env.CEDEV_VERSION }}-linux
+          python-version: "3.12"
 
-      - name: Install CE toolchain
-        if: steps.cedev-cache.outputs.cache-hit != 'true'
+      - name: Install TIpy-asm
+        run: pip install "tipy-asm @ git+https://github.com/XSamuraiCoder/TIpy-asm@${TIPY_REF}"
+
+      - name: Check tables.py is up to date
+        working-directory: calc
         run: |
-          curl -fsSL "https://github.com/CE-Programming/toolchain/releases/download/${CEDEV_VERSION}/CEdev-Linux.tar.gz" \
-            | tar -xz -C "$HOME"
+          python tools/make_tables.py
+          git diff --exit-code src/tables.py
 
       - name: Build
+        working-directory: calc
         run: |
-          echo "$HOME/CEdev/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/CEdev/bin:$PATH"
-          make -C calc
-          ls -l calc/bin/SAXCE.8xp
+          tipy-asm build
+          ls -l bin/SAXCE.8xp
 
       - uses: actions/upload-artifact@v4
         with:
@@ -74,4 +74,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" SAXCE.8xp \
             --repo "$GITHUB_REPOSITORY" \
             --title "SAXCE $GITHUB_REF_NAME" \
-            --notes "Send SAXCE.8xp to your calculator along with the CE C libraries (clibs.8xg). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
+            --notes "Send SAXCE.8xp to your calculator along with LibLoad and the CE C libraries (clibs.8xg). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"

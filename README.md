@@ -24,9 +24,12 @@ TI-84 Plus CE  --USB (Web Serial)-->  bridge page  --WebSocket-->  relay  --IRC-
 
 ## Calculator program (`calc/`)
 
-Send `SAXCE.8xp` to the calculator, along with the CE C libraries
-(`clibs.8xg`: graphx, fontlibc, fileioc, usbdrvce, srldrvce). Run it from
-Cesium, or with `Asm(prgmSAXCE)`.
+Written in Python-like code and compiled with
+[TIpy-asm](https://github.com/XSamuraiCoder/TIpy-asm).
+
+Send `SAXCE.8xp` to the calculator, along with LibLoad and the CE C libraries
+it uses for USB (`USBDRVCE` and `SRLDRVCE`, from
+[clibs](https://tiny.cc/clibs)). Run it from Cesium, or with `Asm(prgmSAXCE)`.
 
 | Key | Action |
 | --- | --- |
@@ -48,17 +51,21 @@ nickname is taken on IRC, the bridge adds a digit. A longer name saved by an
 older version is kept, cut to its first 8 valid characters (press `mode` to
 change it).
 
-**Fonts:** the chat log can use any [fontlibc](https://ce-programming.github.io/toolchain/libraries/fontlibc.html)
-font pack on the calculator (an AppVar whose data starts with `FONTPACK`).
-Send one or more font packs, then press `y=` to cycle through the fonts in
-them; the built-in font is always first. The choice is saved, and all text
-(header, chat, input line, keyboard, nickname screen) uses it, with the layout
-sized to the font's height. Very tall fonts leave little room for chat while
-the keyboard is shown.
+**Fonts:** `y=` switches between the OS font and the fonts in a `SAXFONT`
+font pack, if one is on the calculator (see `calc/pyproject.toml` to build
+one). The choice is saved, and all text uses it, with the layout sized to the
+font's height.
 
-Settings (nickname, keyboard on/off, font) are stored in the AppVar `SAXCFG`.
+The chat keeps the last 16 messages. Settings (nickname, keyboard on/off,
+font) are stored in the AppVar `SAXCFG`.
 
-Build: `cd calc && make` (CE C toolchain, tested with CEdev v15.0).
+Build (needs TIpy-asm with serial support):
+
+```bash
+cd calc
+python tools/make_tables.py   # only after changing text in it
+tipy-asm build
+```
 
 GitHub Actions builds `SAXCE.8xp` and runs the bridge tests on every push;
 the program is attached to each run as the `SAXCE` artifact. Pushing a tag
