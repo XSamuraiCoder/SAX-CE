@@ -66,6 +66,7 @@ D_OSK = 16              # on-screen keyboard: just the old and new selected key
 D_OSK_ALL = 32          # on-screen keyboard: every key (layer or highlight changed)
 D_LAYOUT = 6            # log + bottom: the layout moved (keyboard shown or hidden)
 D_ALL = 7               # everything
+D_LOG_NEW = 64          # chat log: only new entries at the bottom (scroll up, draw them)
 
 nick = [0] * (NICK_MAX + 1)
 text_in = [0] * (TEXT_MAX + 1)
@@ -74,6 +75,8 @@ log_who = [0] * (LOG_MAX * WHO_MAX)
 log_who_len = [0] * LOG_MAX
 log_text = [0] * (LOG_MAX * TEXT_MAX)
 log_text_len = [0] * LOG_MAX
+log_nrows = [0] * LOG_MAX     # rows each entry wraps to; 0 = not worked out yet
+widths = [0] * 128            # glyph widths in the current font
 rx = [0] * (RX_MAX + 1)
 cfg = [0] * CFG_MAX
 
@@ -94,10 +97,10 @@ dirty = D_ALL
 osk_drawn_row = 1       # key drawn as selected last time
 osk_drawn_col = 0
 nick_changed = 0
-entry_color = 0
 font_index = 1          # 0 is the built-in font; n is font n - 1 of SAXFONT
 font_handle = 0
 line_h = 10
+log_new = 0             # entries added since the log was last drawn
 
 
 def mark(flags):
@@ -116,11 +119,19 @@ def apply_font():
     if font_handle == 0:
         font_handle = font.default()
     line_h = font.height(font_handle) + 1
+    # look widths up once instead of asking the font for every character
+    for code in range(128):
+        width = font.width(font_handle, code)
+        widths[code] = width if width else font.width(font_handle, 63)
+    # rows depend on the font: work them out again when next needed
+    for slot in range(LOG_MAX):
+        log_nrows[slot] = 0
 
 
 def glyph_w(code):
-    width = font.width(font_handle, code)
-    return width if width else font.width(font_handle, 63)
+    if code < 128:
+        return widths[code]
+    return widths[63]
 
 
 def draw_code(code, x, y, fg, bg):
@@ -198,16 +209,21 @@ def clean(code):
 
 
 def log_start(kind):
-    global log_head, log_count, scroll
+    global log_head, log_count, scroll, log_new
     slot = log_head
     log_kind[slot] = kind
     log_who_len[slot] = 0
     log_text_len[slot] = 0
+    log_nrows[slot] = 0
     log_head = (log_head + 1) % LOG_MAX
     if log_count < LOG_MAX:
         log_count += 1
+    if scroll:
+        mark(D_LOG)             # was scrolled back: jump to the bottom
+    else:
+        mark(D_LOG_NEW)
     scroll = 0
-    mark(D_LOG)
+    log_new += 1
     return slot
 
 
@@ -231,40 +247,61 @@ def log_status(msg):
         log_text_add(slot, MSG_TEXT[MSG_START[msg] + i])
 
 
-def entry_prefix(slot):
-    return 0 if log_kind[slot] == K_STATUS else log_who_len[slot] + 2
-
-
-def entry_char(slot, i):
-    # "nick: text", status lines have no nick
-    global entry_color
-    prefix = entry_prefix(slot)
-    if i < prefix:
-        entry_color = C_SELF if log_kind[slot] == K_ECHO else C_NICK
-        n = prefix - 2
-        if i < n:
-            return log_who[slot * WHO_MAX + i]
-        return 58 if i == n else 32
-    entry_color = C_STATUS if log_kind[slot] == K_STATUS else C_TEXT
-    return log_text[slot * TEXT_MAX + i - prefix]
-
-
 def entry_layout(slot, top, draw, visible):
-    # word wrap by pixels, returns the row count
-    length = entry_prefix(slot) + log_text_len[slot]
+    # "nick: text" (status lines have no nick), wrapped by pixels.
+    # Draws the rows from `top` that fall in 0..visible-1 when draw is set;
+    # returns the row count.
     row = 0
     x = 1
-    for i in range(length):
-        code = entry_char(slot, i)
-        width = glyph_w(code)
+    y0 = log_y()
+    kind = log_kind[slot]
+    if kind != K_STATUS:
+        color = C_SELF if kind == K_ECHO else C_NICK
+        n = log_who_len[slot]
+        base = slot * WHO_MAX
+        for i in range(n + 2):
+            code = log_who[base + i] if i < n else (58 if i == n else 32)
+            width = widths[code]
+            if x + width > WRAP_W and x > 1:
+                row += 1
+                x = 1
+            if draw:
+                r = top + row
+                if 0 <= r < visible:
+                    font.char(font_handle, code, x, y0 + r * line_h, color)
+            x += width
+    # the text: each wrapped row is drawn in one font.codes call
+    color = C_STATUS if kind == K_STATUS else C_TEXT
+    base = slot * TEXT_MAX
+    n = log_text_len[slot]
+    run = 0                     # index where the current row's text starts
+    run_x = x
+    end = n
+    for i in range(n):
+        width = widths[log_text[base + i]]
         if x + width > WRAP_W and x > 1:
+            r = top + row
+            if draw and 0 <= r < visible and i > run:
+                font.codes(font_handle, log_text, base + run, i - run, run_x, y0 + r * line_h, color)
             row += 1
             x = 1
-        r = top + row
-        if draw and 0 <= r < visible:
-            draw_code(code, x, log_y() + r * line_h, entry_color, C_BG)
+            run = i
+            run_x = 1
+            if draw and top + row >= visible:
+                end = i         # the rest is below the log area
+                break
         x += width
+    r = top + row
+    if draw and 0 <= r < visible and end > run:
+        font.codes(font_handle, log_text, base + run, end - run, run_x, y0 + r * line_h, color)
     return row + 1
+
+
+def entry_rows(slot):
+    # cached: laid out once per entry (and again after a font change)
+    if log_nrows[slot] == 0:
+        log_nrows[slot] = entry_layout(slot, 0, 0, 0)
+    return log_nrows[slot]
 
 
 def newest(k):
@@ -274,7 +311,7 @@ def newest(k):
 def total_rows():
     rows = 0
     for k in range(log_count):
-        rows += entry_layout(newest(k), 0, 0, 0)
+        rows += entry_rows(newest(k))
     return rows
 
 
@@ -414,15 +451,40 @@ def draw_bottom(label, nick_mode):
         draw_msg(HINT_NICK if nick_mode else HINT_CHAT, 2, y + line_h + 2, C_DIM, C_BG)
 
 
+def draw_log_new():
+    # new entries at the bottom: move the log up and draw only them,
+    # instead of clearing and repainting everything
+    global log_new
+    count = min(log_new, log_count)
+    log_new = 0
+    visible = log_rows()
+    rows = 0
+    for k in range(count):
+        rows += entry_rows(newest(k))
+    # also repaint when the log doesn't fill the area: an entry pushed out of
+    # the 16 kept would otherwise stay on screen above the rest
+    if rows >= visible or total_rows() < visible:
+        draw_log()
+        return
+    graphics.scroll(0, log_y(), SCREEN_W, visible * line_h, rows * line_h, C_BG)
+    cursor = visible - 1
+    for k in range(count):
+        slot = newest(k)
+        first = cursor - entry_rows(slot) + 1
+        entry_layout(slot, first, 1, visible)
+        cursor = first - 1
+
+
 def draw_log():
+    global log_new
+    log_new = 0
     top = header_h()
     graphics.fill_rect(0, top, SCREEN_W, input_y() - 3 - top, C_BG)
     visible = log_rows()
     cursor = visible - 1 + scroll
     for k in range(log_count):
         slot = newest(k)
-        rows = entry_layout(slot, 0, 0, 0)
-        first = cursor - rows + 1
+        first = cursor - entry_rows(slot) + 1
         entry_layout(slot, first, 1, visible)
         cursor = first - 1
         if cursor < 0:
@@ -443,6 +505,8 @@ def draw_chat():
         draw_header(TITLE, 1)
     if f & D_LOG:
         draw_log()
+    elif f & D_LOG_NEW:
+        draw_log_new()
     if f & D_BOTTOM:
         draw_bottom(PROMPT, 0)
     else:
@@ -681,8 +745,10 @@ def poll_serial():
     if not hello_sent and nick_len:
         send_nick_line()
         hello_sent = 1
+    # take everything that's waiting, so a burst of messages is drawn once;
+    # capped so keys still get read during a flood
     count = 0
-    while count < 64:
+    while count < 1024:
         code = serial.read_byte()
         if code < 0:
             break
