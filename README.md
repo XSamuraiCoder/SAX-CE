@@ -68,9 +68,9 @@ python tools/make_tables.py   # only after changing text in it
 tipy-asm build
 ```
 
-GitHub Actions builds `SAXCE.8xp` and runs the bridge tests on every push;
-the program is attached to each run as the `SAXCE` artifact. Pushing a tag
-like `v1.0` also publishes a release with `SAXCE.8xp`.
+On every push to `main`, GitHub Actions builds the program, packs it with
+`README.txt` into `SAXCE.zip`, and publishes that as the
+[Latest release](https://github.com/XSamuraiCoder/SAX-CE/releases/tag/latest).
 
 ## PC bridge
 

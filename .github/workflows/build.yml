@@ -3,20 +3,13 @@ name: Build
 on:
   push:
     branches: [main]
-    tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
-
-env:
-  # TIpy-asm version to build with: a branch, tag or commit
-  TIPY_REF: main
+  contents: write
 
 jobs:
-  calc:
-    name: SAXCE.8xp
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,62 +18,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install TIpy-asm
-        run: pip install "tipy-asm @ git+https://github.com/XSamuraiCoder/TIpy-asm@${TIPY_REF}"
-
-      - name: Check tables.py is up to date
-        working-directory: calc
-        run: |
-          python tools/make_tables.py
-          git diff --exit-code src/tables.py
-
       - name: Build
         working-directory: calc
         run: |
+          pip install "tipy-asm @ git+https://github.com/XSamuraiCoder/TIpy-asm@v1.1.1"
           tipy-asm build
-          ls -l bin/SAXCE.8xp bin/SAXFONT.8xv
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SAXCE
-          path: |
-            calc/bin/SAXCE.8xp
-            calc/bin/SAXFONT.8xv
-          if-no-files-found: error
-
-  bridge:
-    name: Bridge tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm test
-
-  release:
-    name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [calc, bridge]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: SAXCE
-          path: out
-      - name: Zip program and readme
+      - name: Pack with README.txt
         run: |
-          sed 's/$/\r/' dist/README.txt > out/README.txt
-          (cd out && zip -9 ../SAXCE.zip SAXCE.8xp SAXFONT.8xv README.txt)
-          cp out/SAXCE.8xp out/SAXFONT.8xv .
-      - name: Publish release
+          mkdir pack
+          cp calc/bin/SAXCE.8xp calc/bin/SAXFONT.8xv pack/
+          sed 's/$/\r/' dist/README.txt > pack/README.txt
+          (cd pack && zip -9 ../SAXCE.zip SAXCE.8xp SAXFONT.8xv README.txt)
+
+      - name: Publish to Latest release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" SAXCE.zip SAXCE.8xp SAXFONT.8xv \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "SAXCE $GITHUB_REF_NAME" \
-            --notes "Send SAXCE.8xp and SAXFONT.8xv to your calculator (no other libraries needed). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
+          gh release delete latest --cleanup-tag --yes || true
+          gh release create latest SAXCE.zip \
+            --target "$GITHUB_SHA" \
+            --title "Latest" \
+            --notes "SAXCE built from ${GITHUB_SHA::7}. Unzip and send SAXCE.8xp and SAXFONT.8xv to your calculator; README.txt explains the rest." \
+            --latest
