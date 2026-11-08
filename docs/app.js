@@ -1,0 +1,453 @@
+// SAX-CE Bridge, as a static page. Everything runs here in the browser:
+// the calculator link (Web Serial), the IRC client and the chat view. The
+// only outside piece is the relay (relay/relay.mjs), which passes IRC lines
+// between a WebSocket and the IRC server, since pages can't open raw TCP.
+
+import { IrcBackend, LocalBackend } from "./irc.js";
+import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js";
+
+const $ = (id) => document.getElementById(id);
+
+// ---------- settings (kept in this browser) ----------
+
+const DEFAULTS = {
+  backend: "irc",          // "irc" (through the relay) | "ws" (IRC WebSocket server) | "local"
+  server: "irc.efnet.org",
+  ircPort: 6667,
+  tls: false,
+  relayPort: 8317,
+  wsUrl: "",
+  channel: "#cemetech",
+  lastNick: "",
+  autoStart: true,
+};
+const STORE = "saxce-bridge";
+
+function loadSettings() {
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(STORE) || "{}");
+  } catch {
+    /* storage blocked: defaults */
+  }
+  const s = { ...DEFAULTS };
+  for (const k of Object.keys(DEFAULTS)) if (typeof saved[k] === typeof DEFAULTS[k]) s[k] = saved[k];
+  return s;
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify(settings));
+  } catch {
+    /* storage blocked: settings last until the page closes */
+  }
+}
+
+let settings = loadSettings();
+
+// ---------- chat view ----------
+
+const hhmm = () => new Date().toTimeString().slice(0, 5);
+
+function addLine(ev) {
+  const chat = $("chat");
+  const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 30;
+  const div = document.createElement("div");
+  const span = (cls, text) => {
+    const s = document.createElement("span");
+    s.className = cls;
+    s.textContent = text;
+    div.append(s);
+  };
+  span("t", `${hhmm()} `);
+  if (ev.t === "chat") {
+    span(ev.mine ? "me" : "n", `<${ev.nick}> `);
+    div.append(document.createTextNode(ev.text));
+  } else {
+    span(ev.t === "log" ? "l" : "s", ev.text);
+  }
+  chat.append(div);
+  while (chat.childElementCount > 2000) chat.firstElementChild.remove();
+  if (atBottom) chat.scrollTop = chat.scrollHeight;
+}
+
+const log = (text) => addLine({ t: "log", text });
+
+function setLight(which, cls, text) {
+  $(`${which}-light`).className = `light ${cls}`;
+  $(`${which}-text`).textContent = text;
+}
+
+// ---------- hub ----------
+// Routes between the calculator, the network backend and the chat view.
+
+let backend = null;
+let running = false;
+let nick = "";        // the calculator's nick, once it says hello
+let earlyNick = "";   // nick the backend was started with before hello
+let net = { state: "off", detail: "" };
+
+const hub = {
+  net(state, detail) {
+    net = { state, detail };
+    $("relay-help").hidden = !(settings.backend === "irc" && state === "down" && /relay/.test(detail));
+    render();
+  },
+  status(text) {
+    calcWrite(`S ${asciiClean(text, TEXT_MAX)}`);
+    addLine({ t: "status", text });
+  },
+  chat(who, text, mine) {
+    if (!mine) calcWrite(`M ${asciiClean(who, WHO_MAX)}\t${asciiClean(text, TEXT_MAX)}`);
+    addLine({ t: "chat", nick: who, text, mine });
+  },
+};
+
+function relayUrl() {
+  // Served by the relay itself: use the same address. Otherwise (GitHub
+  // Pages) the relay on this computer.
+  const local = location.protocol === "http:" && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  const base = local ? `ws://${location.host}` : `ws://127.0.0.1:${settings.relayPort}`;
+  const q = new URLSearchParams({ host: settings.server, port: String(settings.ircPort), tls: settings.tls ? "1" : "0" });
+  return `${base}/irc?${q}`;
+}
+
+function spawnBackend(n) {
+  if (settings.backend === "local") return new LocalBackend({ nick: n }, hub);
+  const ws = settings.backend === "ws";
+  return new IrcBackend(
+    {
+      url: ws ? settings.wsUrl : relayUrl(),
+      label: ws ? settings.wsUrl : `${settings.server}:${settings.ircPort}`,
+      relay: !ws,
+      channel: settings.channel,
+      nick: n,
+    },
+    hub,
+  );
+}
+
+function start() {
+  if (running) return;
+  if (settings.backend === "ws" && !/^wss?:\/\//.test(settings.wsUrl)) {
+    addLine({ t: "status", text: "Enter a WebSocket URL (wss://...) under Settings first." });
+    return;
+  }
+  running = true;
+  earlyNick = "";
+  log("Waiting for the calculator (run SAXCE and plug it in)...");
+  const n = calcNick(settings.lastNick);
+  if (settings.backend !== "local" && n) {
+    log(`Signing on early as ${n} (last used nick) to save time.`);
+    backend = spawnBackend(n);
+    earlyNick = n;
+  } else if (nick) {
+    backend = spawnBackend(nick);
+  }
+  render();
+}
+
+function stop() {
+  if (!running) return;
+  running = false;
+  backend?.stop();
+  backend = null;
+  net = { state: "off", detail: "" };
+  $("relay-help").hidden = true;
+  log("Bridge stopped.");
+  render();
+}
+
+function calcHello(raw) {
+  const n = calcNick(raw) || asciiClean(raw.replace(/ /g, ""), WHO_MAX);
+  if (!n) return;
+  log(`[calc] hello from ${n}`);
+  const firstHello = !nick;
+  nick = n;
+  if (settings.lastNick !== n) {
+    settings.lastNick = n;
+    saveSettings();
+  }
+  if (running) {
+    if (backend) {
+      // Already signed on early with the same nick: nothing to change.
+      if (!(firstHello && earlyNick === n)) backend.setNick(n);
+    } else {
+      backend = spawnBackend(n);
+    }
+  }
+  render();
+}
+
+function calcSay(text) {
+  text = asciiClean(text, TEXT_MAX).trim();
+  if (!text) return;
+  if (backend) backend.say(text);
+  else hub.status("The bridge isn't started; message not sent.");
+}
+
+function pcSay(text) {
+  text = asciiClean(text.trim(), TEXT_MAX);
+  if (!text) return;
+  if (!backend || !nick) {
+    addLine({ t: "status", text: "The calculator hasn't connected yet; nothing to send as." });
+    return;
+  }
+  calcWrite(`M ${nick}\t${text}`);
+  backend.say(text);
+}
+
+// ---------- rendering & settings form ----------
+
+function render() {
+  const { state, detail } = net;
+  const label = { off: "off", connecting: "connecting", joined: "in", down: "down" }[state] || state;
+  const cls = { off: "off", connecting: "warn", joined: "ok", down: "bad" }[state] || "bad";
+  setLight("net", cls, `Network: ${label} ${detail}`.trim());
+  $("run-btn").textContent = running ? "Stop" : "Start";
+  $("run-hint").textContent = running ? "" : "The bridge is stopped.";
+  for (const el of $("settings").querySelectorAll("input")) el.disabled = running && el.id !== "autoStart";
+  const ok = running && !!nick && state !== "off";
+  $("draft").disabled = !ok;
+  $("send-btn").disabled = !ok;
+  $("send-btn").textContent = `Send as ${nick || "you"}`;
+  $("draft").placeholder = ok ? "Message SAX from the PC" : "Connect the calculator to chat from here too";
+  renderCalc();
+}
+
+function showModeFields() {
+  const mode = document.querySelector("input[name=backend]:checked")?.value || "irc";
+  for (const el of document.querySelectorAll("[data-for]")) el.toggleAttribute("data-hidden", el.dataset.for !== mode);
+}
+
+function fillForm() {
+  for (const r of document.querySelectorAll("input[name=backend]")) r.checked = r.value === settings.backend;
+  $("server").value = settings.server;
+  $("ircPort").value = settings.ircPort;
+  $("tls").checked = settings.tls;
+  $("relayPort").value = settings.relayPort;
+  $("wsUrl").value = settings.wsUrl;
+  $("channel").value = settings.channel;
+  $("autoStart").checked = settings.autoStart;
+  showModeFields();
+}
+
+function readForm() {
+  const num = (id, what) => {
+    const n = Number($(id).value);
+    if (Number.isInteger(n) && n >= 1 && n <= 65535) return n;
+    addLine({ t: "status", text: `${what} must be a number from 1 to 65535.` });
+    return null;
+  };
+  const ircPort = num("ircPort", "Port");
+  const relayPort = num("relayPort", "Relay port");
+  if (!ircPort || !relayPort) return false;
+  settings = {
+    ...settings,
+    backend: document.querySelector("input[name=backend]:checked")?.value || "irc",
+    server: $("server").value.trim() || DEFAULTS.server,
+    ircPort,
+    tls: $("tls").checked,
+    relayPort,
+    wsUrl: $("wsUrl").value.trim(),
+    channel: $("channel").value.trim() || DEFAULTS.channel,
+    autoStart: $("autoStart").checked,
+  };
+  saveSettings();
+  return true;
+}
+
+for (const r of document.querySelectorAll("input[name=backend]")) r.addEventListener("change", showModeFields);
+
+$("run-btn").addEventListener("click", () => {
+  if (running) stop();
+  else if (readForm()) start();
+});
+
+$("autoStart").addEventListener("change", () => {
+  settings.autoStart = $("autoStart").checked;
+  saveSettings();
+});
+
+// ---------- sending from the PC ----------
+
+$("draft").addEventListener("input", () => {
+  $("count").textContent = `${$("draft").value.length}/200`;
+});
+
+$("send-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  pcSay($("draft").value);
+  $("draft").value = "";
+  $("count").textContent = "0/200";
+});
+
+// ---------- calculator (Web Serial) ----------
+
+// USB IDs a CE running SAXCE shows up with. srldrvce uses the generic
+// 16C0:05E1 CDC-ACM ID, not TI's own.
+const CE_FILTERS = [
+  { usbVendorId: 0x16c0, usbProductId: 0x05e1 },
+  { usbVendorId: 0x0451, usbProductId: 0xe008 },
+];
+
+let port = null;
+let greeted = false;
+let writeChain = Promise.resolve();
+let helloTimer = null;
+let closing = null;
+
+const isCalc = (p) => {
+  const i = p.getInfo();
+  return CE_FILTERS.some((f) => f.usbVendorId === i.usbVendorId && f.usbProductId === i.usbProductId);
+};
+
+function renderCalc() {
+  if (!port) {
+    setLight("calc", "bad", "Calculator: not connected");
+    $("calc-btn").textContent = "Connect calculator";
+  } else if (!greeted) {
+    setLight("calc", "warn", "Calculator: linked, waiting for SAXCE");
+    $("calc-btn").textContent = "Disconnect";
+  } else {
+    setLight("calc", "ok", `Calculator: ${nick || "connected"}`);
+    $("calc-btn").textContent = "Disconnect";
+  }
+}
+
+function calcWrite(line) {
+  const p = port;
+  if (!p?.writable) return;
+  const data = new TextEncoder().encode(line + "\n");
+  writeChain = writeChain.then(async () => {
+    if (port !== p || !p.writable) return;
+    const w = p.writable.getWriter();
+    try {
+      await w.write(data);
+    } catch {
+      /* the read loop notices a dead link */
+    } finally {
+      w.releaseLock();
+    }
+  });
+}
+
+async function openCalc(p) {
+  if (port || closing) return;
+  try {
+    await p.open({ baudRate: 115200 });
+  } catch (e) {
+    addLine({ t: "status", text: `Couldn't open the calculator: ${e.message}` });
+    return;
+  }
+  port = p;
+  greeted = false;
+  try {
+    await p.setSignals({ dataTerminalReady: true });
+  } catch {
+    /* not all drivers support it */
+  }
+  log("Calculator linked over USB.");
+  renderCalc();
+  // Ask for a hello until we get one: the calculator's own hello is often
+  // sent before the port was opened, and lost.
+  calcWrite("R");
+  helloTimer = setInterval(() => !greeted && calcWrite("R"), 500);
+  readLoop(p);
+}
+
+async function readLoop(p) {
+  const dec = new TextDecoder();
+  let buf = "";
+  while (port === p && p.readable) {
+    const reader = p.readable.getReader();
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          calcLine(buf.slice(0, i).replace(/\r$/, ""));
+          buf = buf.slice(i + 1);
+        }
+        if (buf.length > 1000) buf = "";
+      }
+    } catch {
+      break; // device gone
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  if (port === p) closeCalc("Calculator disconnected.");
+}
+
+function calcLine(line) {
+  const sp = line.indexOf(" ");
+  const kind = sp < 0 ? line : line.slice(0, sp);
+  const body = sp < 0 ? "" : line.slice(sp + 1);
+  if (kind === "H" && body) {
+    greeted = true;
+    calcHello(body);
+  } else if (kind === "M" && body) {
+    calcSay(body);
+  }
+}
+
+async function closeCalc(msg) {
+  const p = port;
+  if (!p) return;
+  port = null;
+  greeted = false;
+  clearInterval(helloTimer);
+  renderCalc();
+  closing = (async () => {
+    try {
+      await writeChain;
+      await p.close();
+    } catch {
+      /* already gone */
+    }
+  })();
+  await closing;
+  closing = null;
+  if (msg) log(msg);
+}
+
+$("calc-btn").addEventListener("click", async () => {
+  if (port) {
+    closeCalc("Calculator disconnected (by you).");
+    return;
+  }
+  try {
+    openCalc(await navigator.serial.requestPort({ filters: CE_FILTERS }));
+  } catch (e) {
+    if (e.name !== "NotFoundError") addLine({ t: "status", text: `Couldn't pick a port: ${e.message}` });
+  }
+});
+
+async function autoConnect() {
+  // Calculators this page was allowed before reconnect without a click.
+  for (const p of await navigator.serial.getPorts()) {
+    if (isCalc(p)) {
+      await openCalc(p);
+      if (port) return;
+    }
+  }
+}
+
+// ---------- start up ----------
+
+fillForm();
+render();
+if ("serial" in navigator) {
+  navigator.serial.addEventListener("connect", (e) => isCalc(e.target) && openCalc(e.target));
+  navigator.serial.addEventListener("disconnect", (e) => e.target === port && closeCalc("Calculator unplugged."));
+  autoConnect();
+} else {
+  $("no-serial").hidden = false;
+  $("calc-btn").disabled = true;
+  $("calc-hint").textContent = "Needs Chrome or Edge.";
+}
+if (settings.autoStart) start();
+window.addEventListener("pagehide", () => backend?.stop());

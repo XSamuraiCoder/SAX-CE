@@ -1,0 +1,12 @@
+{
+  "name": "saxce",
+  "version": "0.3.0",
+  "description": "SAX-CE: chat on Cemetech SAX from a TI-84 Plus CE over USB. Static bridge page plus a tiny IRC relay.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node relay/relay.mjs",
+    "test": "node --test"
+  }
+}

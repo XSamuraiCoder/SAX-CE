@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Chat on Cemetech SAX from a TI-84 Plus CE, connected over USB.">
+<title>SAX-CE Bridge</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>SAX-CE Bridge</h1>
+  <div class="lights">
+    <span class="light" id="calc-light"><i></i><span id="calc-text">Calculator: not connected</span></span>
+    <span class="light" id="net-light"><i></i><span id="net-text">Network: off</span></span>
+  </div>
+</header>
+
+<div id="no-serial" class="banner" hidden>
+  This browser can't talk to USB devices. Open this page in <b>Chrome</b> or <b>Edge</b> on a computer.
+</div>
+
+<div id="relay-help" class="banner info" hidden>
+  To reach SAX, this page needs the small <b>SAX-CE relay</b> running on this computer
+  (web pages can't connect to IRC by themselves). Download
+  <a href="https://github.com/XSamuraiCoder/SAX-CE/raw/main/relay/relay.mjs" download>relay.mjs</a>
+  and run <code>node relay.mjs</code> (needs <a href="https://nodejs.org/">Node.js</a>), or use
+  <code>start-bridge</code> from the <a href="https://github.com/XSamuraiCoder/SAX-CE">project</a>.
+  If Chrome asks to let this site access devices on your local network, allow it.
+  <b>Local test</b> mode under Settings works without it.
+</div>
+
+<section class="panel">
+  <div class="row">
+    <button id="calc-btn" class="primary">Connect calculator</button>
+    <span class="hint" id="calc-hint">Run SAXCE on the calculator, plug it in, then click Connect (only needed once).</span>
+  </div>
+  <details id="settings">
+    <summary>Settings</summary>
+    <div class="grid">
+      <span class="label">Mode</span>
+      <div class="inline">
+        <label><input type="radio" name="backend" value="irc"> SAX (through the relay)</label>
+        <label><input type="radio" name="backend" value="ws"> IRC WebSocket server</label>
+        <label><input type="radio" name="backend" value="local"> Local test (echo)</label>
+      </div>
+      <label for="server" data-for="irc">Server</label>
+      <div class="inline" data-for="irc">
+        <input id="server" size="22">
+        <label for="ircPort">Port</label> <input id="ircPort" size="5" inputmode="numeric">
+        <label><input type="checkbox" id="tls"> TLS</label>
+      </div>
+      <label for="relayPort" data-for="irc">Relay port</label>
+      <div class="inline" data-for="irc"><input id="relayPort" size="5" inputmode="numeric"></div>
+      <label for="wsUrl" data-for="ws">WebSocket URL</label>
+      <div class="inline" data-for="ws"><input id="wsUrl" size="34" placeholder="wss://irc.example.org/"></div>
+      <label for="channel">Channel</label>
+      <div class="inline"><input id="channel" size="16"></div>
+      <span class="label"></span>
+      <div class="inline"><label><input type="checkbox" id="autoStart"> Start when opened</label></div>
+    </div>
+  </details>
+  <div class="row">
+    <button id="run-btn">Start</button>
+    <span class="hint" id="run-hint"></span>
+  </div>
+</section>
+
+<main id="chat" aria-live="polite"></main>
+
+<form id="send-form" class="sendbar">
+  <input id="draft" maxlength="200" autocomplete="off" placeholder="Message SAX from the PC" disabled>
+  <span id="count" class="hint">0/200</span>
+  <button id="send-btn" disabled>Send</button>
+</form>
+
+<footer class="hint">
+  <a href="https://github.com/XSamuraiCoder/SAX-CE">SAX-CE on GitHub</a> ·
+  calculator program, relay and setup steps
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
