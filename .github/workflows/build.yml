@@ -64,14 +64,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: SAXCE
+          path: out
+      - name: Zip program and readme
+        run: |
+          sed 's/$/\r/' dist/README.txt > out/README.txt
+          (cd out && zip -9 ../SAXCE.zip SAXCE.8xp README.txt)
+          cp out/SAXCE.8xp SAXCE.8xp
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" SAXCE.8xp \
+          gh release create "$GITHUB_REF_NAME" SAXCE.zip SAXCE.8xp \
             --repo "$GITHUB_REPOSITORY" \
             --title "SAXCE $GITHUB_REF_NAME" \
             --notes "Send SAXCE.8xp to your calculator along with LibLoad and the CE C libraries (clibs.8xg). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
