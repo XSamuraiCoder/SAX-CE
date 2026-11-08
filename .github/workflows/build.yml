@@ -28,7 +28,7 @@ jobs:
         run: |
           mkdir pack
           cp calc/bin/SAXCE.8xp calc/bin/SAXFONT.8xv pack/
-          sed 's/$/\r/' dist/README.txt > pack/README.txt
+          sed 's/$/\r/' calc/README.txt > pack/README.txt
           (cd pack && zip -9 ../SAXCE.zip SAXCE.8xp SAXFONT.8xv README.txt)
 
       - name: Publish to Latest release

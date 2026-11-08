@@ -15,8 +15,8 @@ TI-84 Plus CE  --USB (Web Serial)-->  bridge page  --WebSocket-->  relay  --IRC-
 
 | Where | What |
 | --- | --- |
-| `dist/SAXCE.8xp`, `dist/SAXFONT.8xv` | calculator program and its font |
-| `dist/SAXCE.zip` | both, plus `README.txt` (user instructions), packed for the Cemetech archives |
+| [Latest release](https://github.com/XSamuraiCoder/SAX-CE/releases/tag/latest) | `SAXCE.zip`: the calculator program, its font and `README.txt`, built from `main` |
+| `calc/README.txt` | user instructions packed into `SAXCE.zip` |
 | `docs/` | the bridge page (static; published with GitHub Pages) |
 | `relay/relay.mjs` | the relay: one file, lets the page reach IRC |
 | `start-bridge.cmd` / `start-bridge.sh` | start the relay and open the page (Windows / Linux) |
