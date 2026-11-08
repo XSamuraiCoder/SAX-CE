@@ -60,6 +60,10 @@ Settings (nickname, keyboard on/off, font) are stored in the AppVar `SAXCFG`.
 
 Build: `cd calc && make` (CE C toolchain, tested with CEdev v15.0).
 
+GitHub Actions builds `SAXCE.8xp` and runs the bridge tests on every push;
+the program is attached to each run as the `SAXCE` artifact. Pushing a tag
+like `v1.0` also publishes a release with `SAXCE.8xp`.
+
 ## PC bridge
 
 The bridge is a static web page: it runs entirely in the browser, talking to

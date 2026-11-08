@@ -1,0 +1,77 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CEDEV_VERSION: v15.0
+
+jobs:
+  calc:
+    name: SAXCE.8xp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CE toolchain
+        id: cedev-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/CEdev
+          key: cedev-${{ env.CEDEV_VERSION }}-linux
+
+      - name: Install CE toolchain
+        if: steps.cedev-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL "https://github.com/CE-Programming/toolchain/releases/download/${CEDEV_VERSION}/CEdev-Linux.tar.gz" \
+            | tar -xz -C "$HOME"
+
+      - name: Build
+        run: |
+          echo "$HOME/CEdev/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/CEdev/bin:$PATH"
+          make -C calc
+          ls -l calc/bin/SAXCE.8xp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SAXCE
+          path: calc/bin/SAXCE.8xp
+          if-no-files-found: error
+
+  bridge:
+    name: Bridge tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [calc, bridge]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: SAXCE
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" SAXCE.8xp \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "SAXCE $GITHUB_REF_NAME" \
+            --notes "Send SAXCE.8xp to your calculator along with the CE C libraries (clibs.8xg). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
