@@ -90,7 +90,9 @@ let net = { state: "off", detail: "" };
 const hub = {
   net(state, detail) {
     net = { state, detail };
-    $("relay-help").hidden = !(settings.backend === "irc" && state === "down" && /relay/.test(detail));
+    const relayDown = settings.backend === "irc" && state === "down" && /relay/.test(detail);
+    $("relay-help").hidden = !relayDown;
+    if (relayDown) checkLocalAccess();
     render();
   },
   status(text) {
@@ -102,6 +104,21 @@ const hub = {
     addLine({ t: "chat", nick: who, text, mine });
   },
 };
+
+// Chrome asks before a public site (like GitHub Pages) can reach this
+// computer. If that was refused, say how to allow it.
+async function checkLocalAccess() {
+  let denied = false;
+  for (const name of ["local-network-access", "loopback-network"]) {
+    try {
+      if ((await navigator.permissions.query({ name })).state === "denied") denied = true;
+    } catch {
+      /* permission not known to this browser */
+    }
+  }
+  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  $("lna-denied").hidden = !denied || local;
+}
 
 function relayUrl() {
   // Served by the relay itself: use the same address. Otherwise (GitHub

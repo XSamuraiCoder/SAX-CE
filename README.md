@@ -76,8 +76,11 @@ computer. It's one file with no packages, for [Node.js](https://nodejs.org/) 18+
 
 That also serves the page at `http://localhost:8317/` and opens it. Running
 it again while it's already running just opens the page. Keep it running
-while you chat. The published page uses the same relay (if Chrome asks to let
-the site access devices on your local network, allow it).
+while you chat.
+
+The published page uses the same relay. Chrome asks once before a public
+site can reach your computer: allow **local network access** when prompted
+(or later under the site's settings). The local page doesn't need this.
 
 The first time, run SAXCE on the calculator, plug it in and click **Connect
 calculator**, then pick the calculator in the browser's list. After that the

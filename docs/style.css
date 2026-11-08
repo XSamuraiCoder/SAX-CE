@@ -130,6 +130,7 @@ button.primary { background: var(--accent); font-weight: 600; }
 
 .banner.info { border-color: var(--nick); background: rgba(120, 190, 255, 0.10); }
 .banner a, footer a { color: var(--nick); }
+.banner p { margin: 8px 0 0; }
 .label { color: var(--fg); }
 [data-hidden] { display: none !important; }
 footer { margin: 0 16px 12px; font-size: 12px; }
