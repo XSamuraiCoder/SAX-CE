@@ -57,6 +57,16 @@ ED_NONE = 0
 ED_CHANGED = 1
 ED_SUBMIT = 2
 
+# what needs redrawing (bit flags in `dirty`); only the marked parts are repainted
+D_HEADER = 1            # header bar (title, nick, online status)
+D_LOG = 2               # chat log area
+D_BOTTOM = 4            # separator, input row, and hint line or keyboard
+D_INPUT = 8             # input row only (typing, mode label, cursor)
+D_OSK = 16              # on-screen keyboard: just the old and new selected key
+D_OSK_ALL = 32          # on-screen keyboard: every key (layer or highlight changed)
+D_LAYOUT = 6            # log + bottom: the layout moved (keyboard shown or hidden)
+D_ALL = 7               # everything
+
 nick = [0] * (NICK_MAX + 1)
 text_in = [0] * (TEXT_MAX + 1)
 log_kind = [0] * LOG_MAX
@@ -80,12 +90,19 @@ scroll = 0
 rx_len = 0
 linked = 0
 hello_sent = 0
-dirty = 1
+dirty = D_ALL
+osk_drawn_row = 1       # key drawn as selected last time
+osk_drawn_col = 0
 nick_changed = 0
 entry_color = 0
 font_index = 1          # 0 is the built-in font; n is font n - 1 of SAXFONT
 font_handle = 0
 line_h = 10
+
+
+def mark(flags):
+    global dirty
+    dirty = dirty | flags
 
 
 # text
@@ -181,7 +198,7 @@ def clean(code):
 
 
 def log_start(kind):
-    global log_head, log_count, scroll, dirty
+    global log_head, log_count, scroll
     slot = log_head
     log_kind[slot] = kind
     log_who_len[slot] = 0
@@ -190,7 +207,7 @@ def log_start(kind):
     if log_count < LOG_MAX:
         log_count += 1
     scroll = 0
-    dirty = 1
+    mark(D_LOG)
     return slot
 
 
@@ -317,25 +334,40 @@ def osk_move_row(step):
             osk_col = col
 
 
-def draw_osk():
-    top = osk_y()
+def draw_osk_key(row, col):
     row_h = osk_row_h()
+    x = osk_key_x(row, col)
+    w = osk_key_w(row, col)
+    y = osk_y() + row * row_h
+    selected = row == osk_row and col == osk_col
+    on = row == 4 and (col == S_SHIFT and osk_layer == 1 or col == S_SYM and osk_layer == 2)
+    back = C_SELF if selected else (C_KEYON if on else C_KEY)
+    fore = C_BG if selected else C_TEXT
+    graphics.fill_rect(x + 1, y + 1, w - 2, row_h - 2, back)
+    if row < 4:
+        code = OSK_CHARS[osk_layer * 40 + row * 10 + col]
+        draw_code(code, x + (w - glyph_w(code)) // 2, y + (row_h - text_h()) // 2, fore, back)
+    else:
+        msg = OSK_SPECIAL_MSG[col]
+        draw_msg(msg, x + (w - msg_w(msg)) // 2, y + (row_h - text_h()) // 2, fore, back)
+
+
+def draw_osk():
+    global osk_drawn_row, osk_drawn_col
     for row in range(OSK_ROWS):
         for col in range(osk_row_len(row)):
-            x = osk_key_x(row, col)
-            w = osk_key_w(row, col)
-            y = top + row * row_h
-            selected = row == osk_row and col == osk_col
-            on = row == 4 and (col == S_SHIFT and osk_layer == 1 or col == S_SYM and osk_layer == 2)
-            back = C_SELF if selected else (C_KEYON if on else C_KEY)
-            fore = C_BG if selected else C_TEXT
-            graphics.fill_rect(x + 1, y + 1, w - 2, row_h - 2, back)
-            if row < 4:
-                code = OSK_CHARS[osk_layer * 40 + row * 10 + col]
-                draw_code(code, x + (w - glyph_w(code)) // 2, y + (row_h - text_h()) // 2, fore, back)
-            else:
-                msg = OSK_SPECIAL_MSG[col]
-                draw_msg(msg, x + (w - msg_w(msg)) // 2, y + (row_h - text_h()) // 2, fore, back)
+            draw_osk_key(row, col)
+    osk_drawn_row = osk_row
+    osk_drawn_col = osk_col
+
+
+def draw_osk_sel():
+    # the selection moved: repaint only the key it left and the key it reached
+    global osk_drawn_row, osk_drawn_col
+    draw_osk_key(osk_drawn_row, osk_drawn_col)
+    draw_osk_key(osk_row, osk_col)
+    osk_drawn_row = osk_row
+    osk_drawn_col = osk_col
 
 
 # screens
@@ -349,9 +381,10 @@ def draw_header(title, show_nick):
         draw_msg(status, SCREEN_W - 3 - msg_w(status), 2, C_OK if linked else C_BAD, C_HEADER)
 
 
-def draw_input_line(label, nick_mode):
+def draw_input_row(label):
+    # clears just this row, then draws the label, mode, text and cursor
     y = input_y()
-    graphics.fill_rect(0, y - 3, SCREEN_W, 1, C_HEADER)
+    graphics.fill_rect(0, y - 2, SCREEN_W, line_h + 2, C_BG)
     x = draw_msg(label, 2, y, C_DIM, C_BG) + 4
     mode_msg = MODE_ABC + mode
     mode_x = SCREEN_W - 2 - msg_w(mode_msg)
@@ -367,15 +400,23 @@ def draw_input_line(label, nick_mode):
     for i in range(first, text_len):
         x += draw_code(text_in[i], x, y, C_TEXT, C_BG)
     graphics.fill_rect(x, y + text_h() - 1, cursor_w, 2, C_SELF)
+
+
+def draw_bottom(label, nick_mode):
+    # everything under the log: separator, input row, and the hint line or keyboard
+    y = input_y()
+    graphics.fill_rect(0, y - 3, SCREEN_W, SCREEN_H - y + 3, C_BG)
+    graphics.fill_rect(0, y - 3, SCREEN_W, 1, C_HEADER)
+    draw_input_row(label)
     if osk_on:
         draw_osk()
     else:
         draw_msg(HINT_NICK if nick_mode else HINT_CHAT, 2, y + line_h + 2, C_DIM, C_BG)
 
 
-def draw_chat():
-    graphics.fill_rect(0, 0, SCREEN_W, SCREEN_H, C_BG)
-    draw_header(TITLE, 1)
+def draw_log():
+    top = header_h()
+    graphics.fill_rect(0, top, SCREEN_W, input_y() - 3 - top, C_BG)
     visible = log_rows()
     cursor = visible - 1 + scroll
     for k in range(log_count):
@@ -391,7 +432,27 @@ def draw_chat():
         w = msg_w(MORE)
         graphics.fill_rect(SCREEN_W // 2 - w // 2 - 2, y, w + 4, line_h, C_BG)
         draw_msg(MORE, SCREEN_W // 2 - w // 2, y, C_STATUS, C_BG)
-    draw_input_line(PROMPT, 0)
+
+
+def draw_chat():
+    # repaints only what was marked since the last call
+    global dirty
+    f = dirty
+    dirty = 0
+    if f & D_HEADER:
+        draw_header(TITLE, 1)
+    if f & D_LOG:
+        draw_log()
+    if f & D_BOTTOM:
+        draw_bottom(PROMPT, 0)
+    else:
+        if f & D_INPUT:
+            draw_input_row(PROMPT)
+        if osk_on:
+            if f & D_OSK_ALL:
+                draw_osk()
+            elif f & D_OSK:
+                draw_osk_sel()
 
 
 # settings appvar
@@ -495,38 +556,48 @@ def backspace():
 
 
 def edit_key(key, limit, nick_mode):
-    # used by the chat box and the nick screen
+    # used by the chat box and the nick screen; marks what needs redrawing
     global osk_on, osk_col, osk_layer, mode
     if key == keyboard.SECOND:
         osk_on = 1 - osk_on
         save_cfg()
+        mark(D_LAYOUT)
         return ED_CHANGED
     if key == keyboard.GRAPH:
         return ED_SUBMIT
     if osk_on:
         if key == keyboard.LEFT:
             osk_col = osk_col - 1 if osk_col else osk_row_len(osk_row) - 1
+            mark(D_OSK)
             return ED_CHANGED
         if key == keyboard.RIGHT:
             osk_col = (osk_col + 1) % osk_row_len(osk_row)
+            mark(D_OSK)
             return ED_CHANGED
         if key == keyboard.UP:
             osk_move_row(-1)
+            mark(D_OSK)
             return ED_CHANGED
         if key == keyboard.DOWN:
             osk_move_row(1)
+            mark(D_OSK)
             return ED_CHANGED
         if key == keyboard.ENTER:
             if osk_row < 4:
                 insert_char(OSK_CHARS[osk_layer * 40 + osk_row * 10 + osk_col], limit, nick_mode)
+                mark(D_INPUT)
             elif osk_col == S_SHIFT:
                 osk_layer = 0 if osk_layer == 1 else 1
+                mark(D_OSK_ALL)
             elif osk_col == S_SYM:
                 osk_layer = 0 if osk_layer == 2 else 2
+                mark(D_OSK_ALL)
             elif osk_col == S_SPACE:
                 insert_char(32, limit, nick_mode)
+                mark(D_INPUT)
             elif osk_col == S_DEL:
                 backspace()
+                mark(D_INPUT)
             else:
                 return ED_SUBMIT
             return ED_CHANGED
@@ -534,13 +605,16 @@ def edit_key(key, limit, nick_mode):
         return ED_SUBMIT
     if key == keyboard.ALPHA:
         mode = (mode + 1) % 3
+        mark(D_INPUT)
         return ED_CHANGED
     if key == keyboard.DEL:
         backspace()
+        mark(D_INPUT)
         return ED_CHANGED
     code = key_char(key)
     if code:
         insert_char(code, limit, nick_mode)
+        mark(D_INPUT)
         return ED_CHANGED
     return ED_NONE
 
@@ -590,15 +664,17 @@ def handle_line():
 
 
 def poll_serial():
-    global linked, hello_sent, rx_len, dirty
+    global linked, hello_sent, rx_len
     now = serial.connected()
     if now and not linked:
         linked = 1
         hello_sent = 0
         rx_len = 0
+        mark(D_HEADER)
         log_status(LINKED)
     elif linked and not now:
         linked = 0
+        mark(D_HEADER)
         log_status(UNLINKED)
     if not linked:
         return
@@ -621,36 +697,49 @@ def poll_serial():
 
 # nick screen
 
+def draw_nick_screen(error):
+    graphics.fill_rect(0, 0, SCREEN_W, SCREEN_H, C_BG)
+    draw_header(NICK_TITLE, 0)
+    y = header_h() + 8
+    y = draw_para(NICK_HELP1, 8, y, C_TEXT, C_BG) + 2
+    y = draw_para(NICK_HELP2, 8, y, C_DIM, C_BG)
+    y = draw_para(NICK_HELP3, 8, y, C_DIM, C_BG) + 6
+    if error >= 0:
+        y = draw_para(error, 8, y, C_BAD, C_BG) + 4
+    if not osk_on:
+        y = draw_para(NICK_SAVE, 8, y, C_DIM, C_BG)
+        draw_para(NICK_CANCEL, 8, y, C_DIM, C_BG)
+    draw_bottom(NICK_LABEL, 1)
+
+
 def prompt_nick():
     # returns 0 if cancelled with no nick
-    global text_len, mode, nick_len
+    global text_len, mode, nick_len, dirty
     for i in range(nick_len):
         text_in[i] = nick[i]
     text_len = nick_len
     saved_mode = mode
     mode = 0
     error = -1
-    redraw = 1
+    dirty = D_ALL
     while True:
         poll_serial()
-        if redraw:
-            graphics.fill_rect(0, 0, SCREEN_W, SCREEN_H, C_BG)
-            draw_header(NICK_TITLE, 0)
-            y = header_h() + 8
-            y = draw_para(NICK_HELP1, 8, y, C_TEXT, C_BG) + 2
-            y = draw_para(NICK_HELP2, 8, y, C_DIM, C_BG)
-            y = draw_para(NICK_HELP3, 8, y, C_DIM, C_BG) + 6
-            if error >= 0:
-                y = draw_para(error, 8, y, C_BAD, C_BG) + 4
-            if not osk_on:
-                y = draw_para(NICK_SAVE, 8, y, C_DIM, C_BG)
-                draw_para(NICK_CANCEL, 8, y, C_DIM, C_BG)
-            draw_input_line(NICK_LABEL, 1)
-            redraw = 0
+        if dirty:
+            f = dirty
+            dirty = 0
+            if f & D_BOTTOM:
+                draw_nick_screen(error)    # the layout changed: repaint the screen
+            else:
+                if f & D_INPUT:
+                    draw_input_row(NICK_LABEL)
+                if osk_on:
+                    if f & D_OSK_ALL:
+                        draw_osk()
+                    elif f & D_OSK:
+                        draw_osk_sel()
         key = keyboard.get()
         if not key:
             continue
-        redraw = 1
         if key == keyboard.CLEAR:
             text_len = 0
             mode = saved_mode
@@ -659,6 +748,7 @@ def prompt_nick():
             continue
         if not input_is_valid_nick():
             error = NICK_BAD if text_len else NICK_EMPTY
+            mark(D_BOTTOM)
             continue
         for i in range(text_len):
             nick[i] = text_in[i]
@@ -686,10 +776,11 @@ def send_input():
     for i in range(text_len):
         log_text_add(slot, text_in[i])
     text_len = 0
+    mark(D_INPUT)
 
 
 def main():
-    global text_len, scroll, dirty
+    global text_len, scroll
     graphics.begin()
     serial.begin(115200)
     load_cfg()
@@ -703,31 +794,35 @@ def main():
     if nick_changed:
         save_cfg()
         log_status(SHORTENED)
+    mark(D_ALL)
     while True:
         poll_serial()
         key = keyboard.get()
         if key:
-            dirty = 1
             if key == keyboard.CLEAR:
                 if text_len == 0:
                     break
                 text_len = 0
+                mark(D_INPUT)
             elif not osk_on and key == keyboard.UP:
                 if scroll < total_rows() - log_rows():
                     scroll += 1
+                    mark(D_LOG)
             elif not osk_on and key == keyboard.DOWN:
                 if scroll > 0:
                     scroll -= 1
+                    mark(D_LOG)
             elif key == keyboard.YEQU:
                 next_font()
+                mark(D_ALL)
             elif key == keyboard.MODE:
                 if prompt_nick() and linked:
                     send_nick_line()
+                mark(D_ALL)
             elif edit_key(key, TEXT_MAX, 0) == ED_SUBMIT:
                 send_input()
         if dirty:
             draw_chat()
-            dirty = 0
     serial.end()
     graphics.end()
 
