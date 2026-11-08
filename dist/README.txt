@@ -74,9 +74,11 @@ up / down     scroll the chat (keyboard hidden)
 
 FONTS
 -----
-SAXCE uses the font in SAXFONT.8xv (DrSans 7). [y=] switches between it
-and a plain 8 pixel font built into the program. Your choice is saved.
-Without SAXFONT on the calculator, the built-in font is used.
+SAXCE uses the font in SAXFONT.8xv (DrSans 7). [y=] steps through every
+font in every fontlibc font pack on the calculator, then a plain 8 pixel
+font built into the program, and shows which one ("Font 2 of 5"). Fonts
+smaller than 6 or taller than 24 pixels are skipped. Your choice is
+saved. Without SAXFONT, the built-in font is used.
 
 
 SETTINGS

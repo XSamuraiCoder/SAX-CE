@@ -53,9 +53,10 @@ older version is kept, cut to its first 8 valid characters (press `mode` to
 change it).
 
 **Fonts:** text is drawn in DrSans 7 (from the CE C toolchain's fontlibc
-examples), which the build turns into `SAXFONT.8xv`. `y=` switches to the
-bigger OS font and back, and the choice is saved. Without `SAXFONT` on the
-calculator, the OS font is used.
+examples), which the build turns into `SAXFONT.8xv`. `y=` steps through
+every font in every [fontlibc](https://ce-programming.github.io/toolchain/libraries/fontlibc.html)
+font pack on the calculator (6 to 24 px tall), then TIpy-asm's built-in 8 px
+font, and the choice is saved. Without `SAXFONT`, the built-in font is used.
 
 The chat keeps the last 16 messages. Settings (nickname, keyboard on/off,
 font) are stored in the AppVar `SAXCFG`.

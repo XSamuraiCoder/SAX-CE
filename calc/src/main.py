@@ -6,7 +6,7 @@
 
 from ti84 import file, font, graphics, keyboard, serial
 
-from tables import (FONT_BUILTIN, FONT_PACK, FONT_PACKED, HINT_CHAT, HINT_NICK, KEPT,
+from tables import (FONT_BUILTIN, FONT_N, FONT_OF, FONT_PACK, HINT_CHAT, HINT_NICK, KEPT,
                     KEY_DEL, KEY_LOWER, KEY_NUMBER, KEY_SEND, KEY_SHIFT, KEY_SPACE, KEY_SYM, LINKED,
                     MODE_ABC, MSG_LEN, MSG_START, MSG_TEXT, MORE, NICK_BAD, NICK_CANCEL, NICK_EMPTY,
                     NICK_HELP1, NICK_HELP2, NICK_HELP3, NICK_LABEL, NICK_SAVE, NICK_TITLE, NO_FONTS,
@@ -97,10 +97,19 @@ dirty = D_ALL
 osk_drawn_row = 1       # key drawn as selected last time
 osk_drawn_col = 0
 nick_changed = 0
-font_index = 1          # 0 is the built-in font; n is font n - 1 of SAXFONT
+font_pn = 99            # chosen font: its pack (PN_*, or n for font.find(n)) ...
+font_sub = 0            # ... and its number in that pack
 font_handle = 0
 line_h = 10
 log_new = 0             # entries added since the log was last drawn
+
+# fonts y= cycles through, filled by find_fonts()
+FONTS_MAX = 24
+PN_BUILTIN = -1
+PN_SAXFONT = 99
+fl_pn = [0] * FONTS_MAX
+fl_sub = [0] * FONTS_MAX
+fl_count = 0
 
 
 def mark(flags):
@@ -110,12 +119,55 @@ def mark(flags):
 
 # text
 
+def font_at(pn, sub):
+    # font `sub` of a pack: SAXFONT, the built-in font, or font.find(pn); 0 if missing
+    if pn == PN_BUILTIN:
+        return font.default()
+    if pn == PN_SAXFONT:
+        return font.load("SAXFONT", sub)
+    pack = font.find(pn)
+    return font.load(pack, sub) if pack else 0
+
+
+def add_font(pn, sub):
+    global fl_count
+    h = font_at(pn, sub)
+    if h == 0 or fl_count >= FONTS_MAX - 1:
+        return
+    height = font.height(h)
+    if 6 <= height <= 24:           # skip fonts too small or big for the layout
+        fl_pn[fl_count] = pn
+        fl_sub[fl_count] = sub
+        fl_count += 1
+
+
+def find_fonts():
+    # every font y= can pick: SAXFONT's, then every other font pack's
+    # (any fontlibc pack on the calc), then the built-in one
+    global fl_count
+    fl_count = 0
+    for i in range(font.count("SAXFONT")):
+        add_font(PN_SAXFONT, i)
+    sax = font.load("SAXFONT", 0)
+    n = 0
+    while n < 40:
+        pack = font.find(n)
+        if pack == 0:
+            break
+        if sax == 0 or font.load(pack, 0) != sax:
+            for i in range(font.count(pack)):
+                add_font(n, i)
+        n += 1
+    fl_pn[fl_count] = PN_BUILTIN
+    fl_sub[fl_count] = 0
+    fl_count += 1
+
+
 def apply_font():
-    # without SAXFONT on the calc this falls back to the built-in 8px font
+    # a font that's gone (pack deleted) falls back to the built-in 8px font.
+    # Called again after file writes, since font packs in RAM can move.
     global font_handle, line_h
-    font_handle = 0
-    if font_index > 0:
-        font_handle = font.load("SAXFONT", font_index - 1)
+    font_handle = font_at(font_pn, font_sub)
     if font_handle == 0:
         font_handle = font.default()
     line_h = font.height(font_handle) + 1
@@ -521,12 +573,18 @@ def draw_chat():
 
 # settings appvar
 # nick, 0, keyboard flag, font pack name, 0, font index
-# the built-in font is saved as pack name "-"
+# the pack name is "SAXFONT", "-" for the built-in font, or "#" and a
+# character '0' + n for the n-th font pack found
 
 def save_cfg():
     file.delete("SAXCFG")
-    size = nick_len + 2 + (MSG_LEN[FONT_PACK] + 2 if font_index else 2)
-    file.create("SAXCFG", size)
+    if font_pn == PN_SAXFONT:
+        extra = MSG_LEN[FONT_PACK] + 2
+    elif font_pn == PN_BUILTIN:
+        extra = 2
+    else:
+        extra = 4
+    file.create("SAXCFG", nick_len + 2 + extra)
     at = 0
     for i in range(nick_len):
         file.write_byte("SAXCFG", at, nick[i])
@@ -534,21 +592,28 @@ def save_cfg():
     file.write_byte("SAXCFG", at, 0)
     file.write_byte("SAXCFG", at + 1, osk_on)
     at += 2
-    if font_index:
+    if font_pn == PN_SAXFONT:
         for i in range(MSG_LEN[FONT_PACK]):
             file.write_byte("SAXCFG", at, MSG_TEXT[MSG_START[FONT_PACK] + i])
             at += 1
         file.write_byte("SAXCFG", at, 0)
-        file.write_byte("SAXCFG", at + 1, font_index - 1)
-    else:
+        file.write_byte("SAXCFG", at + 1, font_sub)
+    elif font_pn == PN_BUILTIN:
         file.write_byte("SAXCFG", at, 45)
         file.write_byte("SAXCFG", at + 1, 0)
+    else:
+        file.write_byte("SAXCFG", at, 35)
+        file.write_byte("SAXCFG", at + 1, 48 + font_pn)
+        file.write_byte("SAXCFG", at + 2, 0)
+        file.write_byte("SAXCFG", at + 3, font_sub)
+    apply_font()                # the write may have moved a font pack
 
 
 def load_cfg():
-    global nick_len, nick_changed, osk_on, font_index
+    global nick_len, nick_changed, osk_on, font_pn, font_sub
     nick_len = 0
-    font_index = 1
+    font_pn = PN_SAXFONT
+    font_sub = 0
     if not file.exists("SAXCFG"):
         return
     size = min(file.size("SAXCFG"), CFG_MAX)
@@ -568,26 +633,52 @@ def load_cfg():
         osk_on = 1 if cfg[at] else 0
         at += 1
     if at + 1 < size and cfg[at] == 45 and cfg[at + 1] == 0:
-        font_index = 0
+        font_pn = PN_BUILTIN
+    elif at + 3 < size and cfg[at] == 35 and cfg[at + 2] == 0 and cfg[at + 1] >= 48:
+        font_pn = cfg[at + 1] - 48
+        font_sub = cfg[at + 3]
     elif at + MSG_LEN[FONT_PACK] + 1 < size and cfg[at + MSG_LEN[FONT_PACK]] == 0:
         same = 1
         for i in range(MSG_LEN[FONT_PACK]):
             if cfg[at + i] != MSG_TEXT[MSG_START[FONT_PACK] + i]:
                 same = 0
         if same:
-            font_index = cfg[at + MSG_LEN[FONT_PACK] + 1] + 1
+            font_sub = cfg[at + MSG_LEN[FONT_PACK] + 1]
+
+
+def log_number(slot, n):
+    if n >= 10:
+        log_text_add(slot, 48 + n // 10)
+    log_text_add(slot, 48 + n % 10)
+
+
+def log_msg(slot, msg):
+    for i in range(MSG_LEN[msg]):
+        log_text_add(slot, MSG_TEXT[MSG_START[msg] + i])
 
 
 def next_font():
-    global font_index
-    count = font.count("SAXFONT")
-    if count == 0:
+    # y=: the next font of any font pack on the calc, then the built-in one
+    global font_pn, font_sub
+    find_fonts()
+    if fl_count <= 1:
         log_status(NO_FONTS)
         return
-    font_index = (font_index + 1) % (count + 1)
-    apply_font()
-    save_cfg()
-    log_status(FONT_PACKED if font_index else FONT_BUILTIN)
+    pos = fl_count - 1          # not in the list (pack gone): start from the top
+    for i in range(fl_count):
+        if fl_pn[i] == font_pn and fl_sub[i] == font_sub:
+            pos = i
+    pos = (pos + 1) % fl_count
+    font_pn = fl_pn[pos]
+    font_sub = fl_sub[pos]
+    save_cfg()                  # also applies it
+    slot = log_start(K_STATUS)  # "Font 2 of 5", plus " (built-in)"
+    log_msg(slot, FONT_N)
+    log_number(slot, pos + 1)
+    log_msg(slot, FONT_OF)
+    log_number(slot, fl_count)
+    if font_pn == PN_BUILTIN:
+        log_msg(slot, FONT_BUILTIN)
 
 
 # keys

@@ -38,9 +38,10 @@ MESSAGES = {
     "KEY_DEL": "Del",
     "KEY_SEND": "Send",
     "FONT_PACK": "SAXFONT",
-    "FONT_BUILTIN": "Font: built-in",
-    "FONT_PACKED": "Font: small",
-    "NO_FONTS": "SAXFONT not found",
+    "FONT_N": "Font ",
+    "FONT_OF": " of ",
+    "FONT_BUILTIN": " (built-in)",
+    "NO_FONTS": "No font packs found",
 }
 
 # green letter on each key and what it types in 123 mode, by scan code
