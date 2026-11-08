@@ -13,9 +13,7 @@ SAX-CE bridge, which passes the chat on to SAX.
 
 REQUIREMENTS
 ------------
-- TI-84 Plus CE or TI-83 Premium CE
-- The CE C libraries: LibLoad, USBDRVCE and SRLDRVCE
-  (get clibs.8xg from https://tiny.cc/clibs)
+- TI-84 Plus CE or TI-83 Premium CE (no other libraries needed)
 - A computer with Chrome or Edge, and a USB cable
 - On OS 5.5 and newer, arTIfiCE (or similar) to run assembly programs
 
@@ -29,8 +27,8 @@ README.txt    this file
 
 INSTALL
 -------
-1. Send SAXCE.8xp, SAXFONT.8xv and clibs.8xg to the calculator with
-   TI Connect CE (or TILP).
+1. Send SAXCE.8xp and SAXFONT.8xv to the calculator with TI Connect CE
+   (or TILP).
 2. Close TI Connect CE afterwards. It can hold on to the USB connection.
 
 
@@ -76,9 +74,9 @@ up / down     scroll the chat (keyboard hidden)
 
 FONTS
 -----
-SAXCE uses the small font in SAXFONT.8xv. [y=] switches between it and the
-calculator's own (bigger) font. Your choice is saved. Without SAXFONT on
-the calculator, the calculator's font is used.
+SAXCE uses the font in SAXFONT.8xv (DrSans 7). [y=] switches between it
+and a plain 8 pixel font built into the program. Your choice is saved.
+Without SAXFONT on the calculator, the built-in font is used.
 
 
 SETTINGS
@@ -101,7 +99,11 @@ The bridge page says the relay isn't running
     Start start-bridge.cmd / start-bridge.sh and leave it open.
 
 The program won't start
-    Make sure LibLoad, USBDRVCE and SRLDRVCE are on the calculator.
+    On OS 5.5 and newer, assembly programs need arTIfiCE (or similar).
+
+The computer makes a disconnect sound when SAXCE starts
+    That's normal: the calculator briefly drops its usual USB connection
+    and comes back as a serial port.
 
 
 HOW IT WORKS
@@ -115,7 +117,8 @@ CREDITS
 -------
 Program and bridge: Akhilesh Gollapudi (XSamuraiCoder)
 Built with TIpy-asm: https://github.com/XSamuraiCoder/TIpy-asm
-USB serial: the CE C toolchain's usbdrvce and srldrvce libraries
+USB serial: TIpy-asm's built-in driver, based on the CE C toolchain's
+usbdrvce and srldrvce
 Font: DrSans, from the CE C toolchain's fontlibc examples
 SAX: Cemetech (cemetech.net)
 

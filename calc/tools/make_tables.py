@@ -38,7 +38,7 @@ MESSAGES = {
     "KEY_DEL": "Del",
     "KEY_SEND": "Send",
     "FONT_PACK": "SAXFONT",
-    "FONT_BUILTIN": "Font: OS",
+    "FONT_BUILTIN": "Font: built-in",
     "FONT_PACKED": "Font: small",
     "NO_FONTS": "SAXFONT not found",
 }

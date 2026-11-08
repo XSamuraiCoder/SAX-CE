@@ -28,9 +28,9 @@ TI-84 Plus CE  --USB (Web Serial)-->  bridge page  --WebSocket-->  relay  --IRC-
 Written in Python-like code and compiled with
 [TIpy-asm](https://github.com/XSamuraiCoder/TIpy-asm).
 
-Send `SAXCE.8xp` and `SAXFONT.8xv` to the calculator, along with LibLoad and the CE C libraries
-it uses for USB (`USBDRVCE` and `SRLDRVCE`, from
-[clibs](https://tiny.cc/clibs)). Run it from Cesium, or with `Asm(prgmSAXCE)`.
+Send `SAXCE.8xp` and `SAXFONT.8xv` to the calculator; nothing else is
+needed, since TIpy-asm builds its own USB serial driver in. Run it from
+Cesium, or with `Asm(prgmSAXCE)`.
 
 | Key | Action |
 | --- | --- |

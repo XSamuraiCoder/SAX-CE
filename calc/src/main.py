@@ -16,7 +16,6 @@ from tables import (FONT_BUILTIN, FONT_PACK, FONT_PACKED, HINT_CHAT, HINT_NICK, 
 # Layout
 SCREEN_W = 320
 SCREEN_H = 240
-CW = 8                  # OS font cell width
 OSK_ROWS = 5
 WRAP_W = SCREEN_W - 2
 
@@ -84,36 +83,31 @@ hello_sent = 0
 dirty = 1
 nick_changed = 0
 entry_color = 0
-font_index = 1          # 0 is the OS font; n is font n - 1 of SAXFONT
+font_index = 1          # 0 is the built-in font; n is font n - 1 of SAXFONT
 font_handle = 0
-line_h = 14
+line_h = 10
 
 
 # text
 
 def apply_font():
-    # without SAXFONT on the calc this falls back to the OS font
+    # without SAXFONT on the calc this falls back to the built-in 8px font
     global font_handle, line_h
     font_handle = 0
-    line_h = 14
     if font_index > 0:
         font_handle = font.load("SAXFONT", font_index - 1)
-        if font_handle:
-            line_h = font.height(font_handle) + 1
+    if font_handle == 0:
+        font_handle = font.default()
+    line_h = font.height(font_handle) + 1
 
 
 def glyph_w(code):
-    if font_handle == 0:
-        return CW
     width = font.width(font_handle, code)
     return width if width else font.width(font_handle, 63)
 
 
 def draw_code(code, x, y, fg, bg):
-    # returns the width; the OS font paints its own background
-    if font_handle == 0:
-        graphics.char(code, x, y, fg, bg)
-        return CW
+    # returns the width; draws over the background that's already there
     width = font.char(font_handle, code, x, y, fg)
     return width if width else font.char(font_handle, 63, x, y, fg)
 
@@ -402,7 +396,7 @@ def draw_chat():
 
 # settings appvar
 # nick, 0, keyboard flag, font pack name, 0, font index
-# the OS font is saved as pack name "-"
+# the built-in font is saved as pack name "-"
 
 def save_cfg():
     file.delete("SAXCFG")

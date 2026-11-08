@@ -83,4 +83,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" SAXCE.zip SAXCE.8xp SAXFONT.8xv \
             --repo "$GITHUB_REPOSITORY" \
             --title "SAXCE $GITHUB_REF_NAME" \
-            --notes "Send SAXCE.8xp and SAXFONT.8xv to your calculator along with LibLoad and the CE C libraries (clibs.8xg). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
+            --notes "Send SAXCE.8xp and SAXFONT.8xv to your calculator (no other libraries needed). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
