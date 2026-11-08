@@ -28,7 +28,7 @@ README.txt    this file
 INSTALL
 -------
 1. Send SAXCE.8xp and SAXFONT.8xv to the calculator with TI Connect CE
-   (or TILP).
+   (or TILP or WebTILP  ).
 2. Close TI Connect CE afterwards. It can hold on to the USB connection.
 
 
