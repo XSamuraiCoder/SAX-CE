@@ -5,10 +5,9 @@ main = "src/main.py"
 target = "ce"
 bindir = "bin"
 
-# Fonts for y=: the fonts in a SAXFONT font pack. To build one from a .fnt or
-# .convfont file, uncomment this, or for several fonts run:
-#   tipy-asm convfont -o fontpack -N SAXFONT -f a.fnt -f b.fnt SAXFONT.8xv
-# [[tool.tipy.assets]]
-# source = "fonts/drsans-09-normal.convfont"
-# kind = "font"
-# name = "SAXFONT"
+# Chat font: DrSans 7 (from the CE C toolchain's fontlibc examples), built
+# into SAXFONT.8xv next to the program. y= switches to the OS font.
+[[tool.tipy.assets]]
+source = "fonts/drsans-07-normal.convfont"
+kind = "font"
+name = "SAXFONT"

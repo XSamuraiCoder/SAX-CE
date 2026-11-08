@@ -23,13 +23,14 @@ REQUIREMENTS
 FILES
 -----
 SAXCE.8xp     the program
+SAXFONT.8xv   the chat font (DrSans 7)
 README.txt    this file
 
 
 INSTALL
 -------
-1. Send SAXCE.8xp and clibs.8xg to the calculator with TI Connect CE
-   (or TILP).
+1. Send SAXCE.8xp, SAXFONT.8xv and clibs.8xg to the calculator with
+   TI Connect CE (or TILP).
 2. Close TI Connect CE afterwards. It can hold on to the USB connection.
 
 
@@ -75,8 +76,9 @@ up / down     scroll the chat (keyboard hidden)
 
 FONTS
 -----
-[y=] switches between the normal font and the fonts in a font pack AppVar
-named SAXFONT, if you have one on the calculator. Your choice is saved.
+SAXCE uses the small font in SAXFONT.8xv. [y=] switches between it and the
+calculator's own (bigger) font. Your choice is saved. Without SAXFONT on
+the calculator, the calculator's font is used.
 
 
 SETTINGS
@@ -114,6 +116,7 @@ CREDITS
 Program and bridge: Akhilesh Gollapudi (XSamuraiCoder)
 Built with TIpy-asm: https://github.com/XSamuraiCoder/TIpy-asm
 USB serial: the CE C toolchain's usbdrvce and srldrvce libraries
+Font: DrSans, from the CE C toolchain's fontlibc examples
 SAX: Cemetech (cemetech.net)
 
 

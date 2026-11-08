@@ -84,7 +84,7 @@ hello_sent = 0
 dirty = 1
 nick_changed = 0
 entry_color = 0
-font_index = 0          # 0 is the OS font; n is font n - 1 of SAXFONT
+font_index = 1          # 0 is the OS font; n is font n - 1 of SAXFONT
 font_handle = 0
 line_h = 14
 
@@ -92,14 +92,13 @@ line_h = 14
 # text
 
 def apply_font():
-    global font_handle, line_h, font_index
+    # without SAXFONT on the calc this falls back to the OS font
+    global font_handle, line_h
     font_handle = 0
     line_h = 14
     if font_index > 0:
         font_handle = font.load("SAXFONT", font_index - 1)
-        if font_handle == 0:
-            font_index = 0
-        else:
+        if font_handle:
             line_h = font.height(font_handle) + 1
 
 
@@ -403,10 +402,11 @@ def draw_chat():
 
 # settings appvar
 # nick, 0, keyboard flag, font pack name, 0, font index
+# the OS font is saved as pack name "-"
 
 def save_cfg():
     file.delete("SAXCFG")
-    size = nick_len + 2 + (MSG_LEN[FONT_PACK] + 2 if font_index else 1)
+    size = nick_len + 2 + (MSG_LEN[FONT_PACK] + 2 if font_index else 2)
     file.create("SAXCFG", size)
     at = 0
     for i in range(nick_len):
@@ -422,13 +422,14 @@ def save_cfg():
         file.write_byte("SAXCFG", at, 0)
         file.write_byte("SAXCFG", at + 1, font_index - 1)
     else:
-        file.write_byte("SAXCFG", at, 0)
+        file.write_byte("SAXCFG", at, 45)
+        file.write_byte("SAXCFG", at + 1, 0)
 
 
 def load_cfg():
     global nick_len, nick_changed, osk_on, font_index
     nick_len = 0
-    font_index = 0
+    font_index = 1
     if not file.exists("SAXCFG"):
         return
     size = min(file.size("SAXCFG"), CFG_MAX)
@@ -447,8 +448,9 @@ def load_cfg():
     if at < size:
         osk_on = 1 if cfg[at] else 0
         at += 1
-    # only SAXFONT fonts are remembered
-    if at + MSG_LEN[FONT_PACK] + 1 < size and cfg[at + MSG_LEN[FONT_PACK]] == 0:
+    if at + 1 < size and cfg[at] == 45 and cfg[at + 1] == 0:
+        font_index = 0
+    elif at + MSG_LEN[FONT_PACK] + 1 < size and cfg[at + MSG_LEN[FONT_PACK]] == 0:
         same = 1
         for i in range(MSG_LEN[FONT_PACK]):
             if cfg[at + i] != MSG_TEXT[MSG_START[FONT_PACK] + i]:

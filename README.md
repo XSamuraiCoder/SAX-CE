@@ -15,8 +15,8 @@ TI-84 Plus CE  --USB (Web Serial)-->  bridge page  --WebSocket-->  relay  --IRC-
 
 | Where | What |
 | --- | --- |
-| `dist/SAXCE.8xp` | calculator program |
-| `dist/SAXCE.zip` | the program plus `README.txt` (user instructions), packed for the Cemetech archives |
+| `dist/SAXCE.8xp`, `dist/SAXFONT.8xv` | calculator program and its font |
+| `dist/SAXCE.zip` | both, plus `README.txt` (user instructions), packed for the Cemetech archives |
 | `docs/` | the bridge page (static; published with GitHub Pages) |
 | `relay/relay.mjs` | the relay: one file, lets the page reach IRC |
 | `start-bridge.cmd` / `start-bridge.sh` | start the relay and open the page (Windows / Linux) |
@@ -28,7 +28,7 @@ TI-84 Plus CE  --USB (Web Serial)-->  bridge page  --WebSocket-->  relay  --IRC-
 Written in Python-like code and compiled with
 [TIpy-asm](https://github.com/XSamuraiCoder/TIpy-asm).
 
-Send `SAXCE.8xp` to the calculator, along with LibLoad and the CE C libraries
+Send `SAXCE.8xp` and `SAXFONT.8xv` to the calculator, along with LibLoad and the CE C libraries
 it uses for USB (`USBDRVCE` and `SRLDRVCE`, from
 [clibs](https://tiny.cc/clibs)). Run it from Cesium, or with `Asm(prgmSAXCE)`.
 
@@ -52,10 +52,10 @@ nickname is taken on IRC, the bridge adds a digit. A longer name saved by an
 older version is kept, cut to its first 8 valid characters (press `mode` to
 change it).
 
-**Fonts:** `y=` switches between the OS font and the fonts in a `SAXFONT`
-font pack, if one is on the calculator (see `calc/pyproject.toml` to build
-one). The choice is saved, and all text uses it, with the layout sized to the
-font's height.
+**Fonts:** text is drawn in DrSans 7 (from the CE C toolchain's fontlibc
+examples), which the build turns into `SAXFONT.8xv`. `y=` switches to the
+bigger OS font and back, and the choice is saved. Without `SAXFONT` on the
+calculator, the OS font is used.
 
 The chat keeps the last 16 messages. Settings (nickname, keyboard on/off,
 font) are stored in the AppVar `SAXCFG`.

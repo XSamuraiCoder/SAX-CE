@@ -38,12 +38,14 @@ jobs:
         working-directory: calc
         run: |
           tipy-asm build
-          ls -l bin/SAXCE.8xp
+          ls -l bin/SAXCE.8xp bin/SAXFONT.8xv
 
       - uses: actions/upload-artifact@v4
         with:
           name: SAXCE
-          path: calc/bin/SAXCE.8xp
+          path: |
+            calc/bin/SAXCE.8xp
+            calc/bin/SAXFONT.8xv
           if-no-files-found: error
 
   bridge:
@@ -72,13 +74,13 @@ jobs:
       - name: Zip program and readme
         run: |
           sed 's/$/\r/' dist/README.txt > out/README.txt
-          (cd out && zip -9 ../SAXCE.zip SAXCE.8xp README.txt)
-          cp out/SAXCE.8xp SAXCE.8xp
+          (cd out && zip -9 ../SAXCE.zip SAXCE.8xp SAXFONT.8xv README.txt)
+          cp out/SAXCE.8xp out/SAXFONT.8xv .
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" SAXCE.zip SAXCE.8xp \
+          gh release create "$GITHUB_REF_NAME" SAXCE.zip SAXCE.8xp SAXFONT.8xv \
             --repo "$GITHUB_REPOSITORY" \
             --title "SAXCE $GITHUB_REF_NAME" \
-            --notes "Send SAXCE.8xp to your calculator along with LibLoad and the CE C libraries (clibs.8xg). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
+            --notes "Send SAXCE.8xp and SAXFONT.8xv to your calculator along with LibLoad and the CE C libraries (clibs.8xg). Bridge page: https://xsamuraicoder.github.io/SAX-CE/"
