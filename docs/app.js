@@ -3,8 +3,8 @@
 // only outside piece is the relay (relay/relay.mjs), which passes IRC lines
 // between a WebSocket and the IRC server, since pages can't open raw TCP.
 
-import { IrcBackend, LocalBackend } from "./irc.js?v=4";
-import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js?v=4";
+import { IrcBackend, LocalBackend } from "./irc.js?v=5";
+import { asciiClean, calcNick, TEXT_MAX, WHO_MAX } from "./util.js?v=5";
 
 const $ = (id) => document.getElementById(id);
 
@@ -335,6 +335,7 @@ let greeted = false;
 let writeChain = Promise.resolve();
 let helloTimer = null;
 let closing = null;
+let opening = null;
 
 const hex4 = (n) => n.toString(16).padStart(4, "0");
 
@@ -384,12 +385,21 @@ function calcWrite(line) {
 }
 
 async function openCalc(p) {
-  if (port || closing) return;
+  // The load-time reconnect and Chrome's "connect" event can both fire for
+  // the same device; only one open may be in progress.
+  if (port || closing || opening) return;
+  opening = p;
   try {
     await p.open({ baudRate: 115200 });
   } catch (e) {
-    addLine({ t: "status", text: `Couldn't open the calculator: ${e.message}` });
+    if (!port)
+      addLine({
+        t: "status",
+        text: `Couldn't open the calculator (${e.message}). Is it already open in another tab or program, like TI Connect CE?`,
+      });
     return;
+  } finally {
+    opening = null;
   }
   port = p;
   greeted = false;

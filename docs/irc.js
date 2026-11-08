@@ -8,7 +8,7 @@
 //
 // Reports through `hub`: net(state, detail), status(text), chat(nick, text, mine).
 
-import { ircNick, parseIrc, stripFormatting, unwrapRelay } from "./util.js?v=4";
+import { ircNick, parseIrc, stripFormatting, unwrapRelay } from "./util.js?v=5";
 
 const MAX_PENDING = 20;
 
