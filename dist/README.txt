@@ -76,7 +76,7 @@ FONTS
 -----
 SAXCE uses the font in SAXFONT.8xv (DrSans 7). [y=] steps through every
 font in every fontlibc font pack on the calculator, then a plain 8 pixel
-font built into the program, and shows which one ("Font 2 of 5"). Fonts
+font built into the program, and shows its name ("Font: DrSans 10px"). Fonts
 smaller than 6 or taller than 24 pixels are skipped. Your choice is
 saved. Without SAXFONT, the built-in font is used.
 

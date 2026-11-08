@@ -56,7 +56,8 @@ change it).
 examples), which the build turns into `SAXFONT.8xv`. `y=` steps through
 every font in every [fontlibc](https://ce-programming.github.io/toolchain/libraries/fontlibc.html)
 font pack on the calculator (6 to 24 px tall), then TIpy-asm's built-in 8 px
-font, and the choice is saved. Without `SAXFONT`, the built-in font is used.
+font, showing each one's name and size ("Font: DrSans 10px"). The choice is
+saved. Without `SAXFONT`, the built-in font is used.
 
 The chat keeps the last 16 messages. Settings (nickname, keyboard on/off,
 font) are stored in the AppVar `SAXCFG`.

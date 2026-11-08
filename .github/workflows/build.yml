@@ -21,7 +21,7 @@ jobs:
       - name: Build
         working-directory: calc
         run: |
-          pip install "tipy-asm @ git+https://github.com/XSamuraiCoder/TIpy-asm@v1.1.1"
+          pip install "tipy-asm @ git+https://github.com/XSamuraiCoder/TIpy-asm@v1.1.2"
           tipy-asm build
 
       - name: Pack with README.txt

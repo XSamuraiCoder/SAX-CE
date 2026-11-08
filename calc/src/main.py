@@ -6,7 +6,7 @@
 
 from ti84 import file, font, graphics, keyboard, serial
 
-from tables import (FONT_BUILTIN, FONT_N, FONT_OF, FONT_PACK, HINT_CHAT, HINT_NICK, KEPT,
+from tables import (FONT_BUILTIN, FONT_N, FONT_PACK, FONT_PX, FONT_UNNAMED, HINT_CHAT, HINT_NICK, KEPT,
                     KEY_DEL, KEY_LOWER, KEY_NUMBER, KEY_SEND, KEY_SHIFT, KEY_SPACE, KEY_SYM, LINKED,
                     MODE_ABC, MSG_LEN, MSG_START, MSG_TEXT, MORE, NICK_BAD, NICK_CANCEL, NICK_EMPTY,
                     NICK_HELP1, NICK_HELP2, NICK_HELP3, NICK_LABEL, NICK_SAVE, NICK_TITLE, NO_FONTS,
@@ -672,13 +672,36 @@ def next_font():
     font_pn = fl_pn[pos]
     font_sub = fl_sub[pos]
     save_cfg()                  # also applies it
-    slot = log_start(K_STATUS)  # "Font 2 of 5", plus " (built-in)"
+    # "Font: DrSans 9px": the pack's family name and the font's height
+    slot = log_start(K_STATUS)
     log_msg(slot, FONT_N)
-    log_number(slot, pos + 1)
-    log_msg(slot, FONT_OF)
-    log_number(slot, fl_count)
     if font_pn == PN_BUILTIN:
         log_msg(slot, FONT_BUILTIN)
+    else:
+        at = slot * TEXT_MAX + log_text_len[slot]
+        got = font.family_codes(pack_of(font_pn), log_text, at, 24)
+        for i in range(got):
+            log_text[at + i] = clean(log_text[at + i])
+        log_text_len[slot] += got
+        if got == 0:
+            log_msg(slot, FONT_UNNAMED)
+    log_text_add(slot, 32)
+    log_number(slot, font.height(font_handle))
+    log_msg(slot, FONT_PX)
+
+
+def pack_of(pn):
+    # the font pack behind a font list entry, for font.family_codes
+    if pn != PN_SAXFONT:
+        return font.find(pn)
+    sax = font.load("SAXFONT", 0)
+    n = 0
+    while n < 40:
+        pack = font.find(n)
+        if pack == 0 or font.load(pack, 0) == sax:
+            return pack
+        n += 1
+    return 0
 
 
 # keys

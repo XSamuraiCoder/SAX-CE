@@ -38,9 +38,10 @@ MESSAGES = {
     "KEY_DEL": "Del",
     "KEY_SEND": "Send",
     "FONT_PACK": "SAXFONT",
-    "FONT_N": "Font ",
-    "FONT_OF": " of ",
-    "FONT_BUILTIN": " (built-in)",
+    "FONT_N": "Font: ",
+    "FONT_BUILTIN": "built-in",
+    "FONT_UNNAMED": "unnamed",
+    "FONT_PX": "px",
     "NO_FONTS": "No font packs found",
 }
 
